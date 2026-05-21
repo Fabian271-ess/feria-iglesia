@@ -8,7 +8,7 @@ import {
 } from "../data/productos"
 
 const EMOJIS = {
-  "accesorios de cabello": "🎀", "construcción": "🪴", "repostería": "🍫",
+  "accesorios de cabello": "🎀", "construcción": "🪴", "chocolatería": "🍫",
   "moñas": "🎀", "moña scrunchie": "🪢", "diademas": "👑",
   "chocomensajes": "💌", "chocolates sueltos": "🍫", "rositas": "🌸",
   "corazones": "❤️", "macetas pequeñas": "🪴", "macetas medianas": "🌿", "macetas grandes": "🌳",
@@ -33,7 +33,6 @@ export default function Catalog() {
   const subcategorias  = seccionActiva ? getSubcategorias(seccionActiva.idCategoria) : []
   const subcategoriaActiva = subcategorias.find((c) => normalize(c.nombre) === subseccion)
 
-  // Decide qué productos mostrar
   const productosBase = useMemo(() => {
     if (!seccion) return []
     if (seccion && !subseccion && subcategorias.length > 0) return []
@@ -105,7 +104,6 @@ export default function Catalog() {
           <div className="w-16 h-px mx-auto mt-4" style={{ background: "linear-gradient(90deg, transparent, #d4a843, transparent)" }} />
         </div>
         <div className="max-w-4xl mx-auto px-4 py-16">
-          {/* ✅ CAMBIADO: flex wrap justify-center para centrar siempre */}
           <div className="flex flex-wrap justify-center gap-5">
             {subcategorias.map((sub) => (
               <button
@@ -137,7 +135,6 @@ export default function Catalog() {
 
   return (
     <div style={{ background: bgGradient, minHeight: "100vh" }}>
-      {/* Header */}
       <div className="w-full py-10 px-4 text-center" style={{ borderBottom: "1px solid rgba(212,168,67,0.2)" }}>
         <div className="flex items-center justify-center gap-2 mb-3 flex-wrap">
           <button onClick={() => navigate("/")} style={{ color: "rgba(212,168,67,0.4)", fontSize: "11px", letterSpacing: "2px" }}>INICIO</button>
@@ -193,7 +190,6 @@ export default function Catalog() {
             {subcategorias.length > 0 && (
               <div className="p-4 rounded-xl flex flex-col gap-2" style={{ background: "rgba(26,2,5,0.9)", border: "1px solid rgba(212,168,67,0.2)" }}>
                 <h3 className="font-black uppercase mb-1" style={{ color: "#d4a843", fontSize: "11px", letterSpacing: "3px" }}>Tipo</h3>
-                {/* ✅ CAMBIADO: text-center y w-full para centrar el texto del filtro lateral */}
                 {subcategorias.map((sub) => (
                   <button key={sub.idCategoria}
                     onClick={() => navigate(`/catalogo/${seccion}/${normalize(sub.nombre)}`)}

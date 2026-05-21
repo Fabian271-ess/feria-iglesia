@@ -4,7 +4,7 @@ export const categorias = [
   // Raíz
   { idCategoria: 1, nombre: "Accesorios de Cabello", idPadre: null, descripcion: "Moñas, corbatas y diademas artesanales" },
   { idCategoria: 2, nombre: "Construcción",          idPadre: null, descripcion: "Macetas artesanales hechas a mano" },
-  { idCategoria: 3, nombre: "Repostería",            idPadre: null, descripcion: "Chocomensajes, chocolates, rositas y corazones" },
+  { idCategoria: 3, nombre: "Chocolatería",          idPadre: null, descripcion: "Chocomensajes, chocolates, rositas y corazones" },
   // Hijos de Accesorios
   { idCategoria: 4, nombre: "Moñas",           idPadre: 1 },
   { idCategoria: 5, nombre: "Moña Scrunchie",  idPadre: 1 },
@@ -12,7 +12,7 @@ export const categorias = [
   // Hijos de Construcción
   { idCategoria: 7, nombre: "Macetas Pequeñas",  idPadre: 2 },
   { idCategoria: 9, nombre: "Macetas Grandes",   idPadre: 2 },
-  // Hijos de Repostería
+  // Hijos de Chocolatería
   { idCategoria: 10, nombre: "Chocomensajes",      idPadre: 3 },
   { idCategoria: 11, nombre: "Chocolates Sueltos", idPadre: 3 },
   { idCategoria: 12, nombre: "Rositas",            idPadre: 3 },
@@ -67,8 +67,8 @@ export const productos = [
   { idProducto: 33, nombreProducto: "Chocolates sueltos con mensaje especial",  precio: 26000, idCategoria: 11, categoriaNombre: "Chocolates Sueltos", imagenUrl: "https://res.cloudinary.com/df7jz4ffk/image/upload/v1779400202/50_mvhjxr.jpg", descripcion: "Chocolate artesanal con mucha dedicacion y encanto.", activo: true },
 
   // ── Rositas (12) ──
-  { idProducto: 34, nombreProducto: "Rositas de chocolate",              precio: 6000, idCategoria: 12, categoriaNombre: "Rositas", imagenUrl: "https://res.cloudinary.com/df7jz4ffk/image/upload/v1779382549/44_ukdbvi.jpg", descripcion: "Rositas cubiertas con chocolate negro artesanal.", activo: true },
-  { idProducto: 35, nombreProducto: "Rositas Pequeñas de chocolate negro",precio: 6000, idCategoria: 12, categoriaNombre: "Rositas", imagenUrl: "https://res.cloudinary.com/df7jz4ffk/image/upload/v1779400623/53_sdueg9.jpg", descripcion: "Rositas cubiertas con chocolate negro artesanal.", activo: true },
+  { idProducto: 34, nombreProducto: "Rositas de chocolate",               precio: 6000, idCategoria: 12, categoriaNombre: "Rositas", imagenUrl: "https://res.cloudinary.com/df7jz4ffk/image/upload/v1779382549/44_ukdbvi.jpg", descripcion: "Rositas cubiertas con chocolate negro artesanal.", activo: true },
+  { idProducto: 35, nombreProducto: "Rositas Pequeñas de chocolate negro", precio: 6000, idCategoria: 12, categoriaNombre: "Rositas", imagenUrl: "https://res.cloudinary.com/df7jz4ffk/image/upload/v1779400623/53_sdueg9.jpg", descripcion: "Rositas cubiertas con chocolate negro artesanal.", activo: true },
 
   // ── Corazones (13) ──
   { idProducto: 36, nombreProducto: "Corazón de chocolate",          precio: 12000, idCategoria: 13, categoriaNombre: "Corazones", imagenUrl: "https://res.cloudinary.com/df7jz4ffk/image/upload/v1779399723/47_jaiqys.jpg", descripcion: "Corazón de chocolate hecho con amor y dedicacion.", activo: true },

@@ -5,7 +5,7 @@ import logoFeria from "../assets/logo-feria.png"
 const secciones = [
   { nombre: "Accesorios de Cabello", ruta: "/catalogo/accesorios-de-cabello" },
   { nombre: "Construcción",          ruta: "/catalogo/construccion" },
-  { nombre: "Repostería",            ruta: "/catalogo/reposteria" },
+  { nombre: "Chocolatería",           ruta: "/catalogo/chocolateria" },
 ]
 
 export default function Navbar() {

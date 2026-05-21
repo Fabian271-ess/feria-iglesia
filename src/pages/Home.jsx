@@ -4,7 +4,7 @@ import logoFeria from "../assets/logo-feria.png"
 const secciones = [
   { nombre: "Accesorios de Cabello", ruta: "/catalogo/accesorios-de-cabello", emoji: "🎀", descripcion: "Moñas, corbatas y diademas artesanales", color: "#d4a843" },
   { nombre: "Construcción",          ruta: "/catalogo/construccion",           emoji: "🪴", descripcion: "Macetas artesanales hechas a mano",       color: "#a0522d" },
-  { nombre: "Repostería",            ruta: "/catalogo/reposteria",             emoji: "🍫", descripcion: "Chocomensajes, chocolates, rositas y corazones", color: "#c0392b" },
+  { nombre: "Chocolatería",          ruta: "/catalogo/chocolateria",           emoji: "🍫", descripcion: "Chocomensajes, chocolates, rositas y corazones", color: "#c0392b" },
 ]
 
 export default function Home() {

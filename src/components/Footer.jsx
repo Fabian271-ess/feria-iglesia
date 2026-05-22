@@ -57,6 +57,7 @@ export default function Footer() {
         <div style={{ borderTop: "1px solid rgba(212,168,67,0.15)", marginTop: "32px", paddingTop: "24px" }} className="flex flex-col md:flex-row items-center justify-between gap-2">
           <p style={{ color: "rgba(212,168,67,0.3)", fontSize: "11px", letterSpacing: "2px" }}>2026 Feria Corazones Fuertes · IPUC Pisarreal</p>
           <p style={{ color: "rgba(212,168,67,0.2)", fontSize: "11px" }}>Hecho en Colombia 🇨🇴</p>
+          <p style={{ color: "rgba(212,168,67,0.2)", fontSize: "11px" }}>Desarrollado por Fabian Hoyos</p>
         </div>
       </div>
     </footer>

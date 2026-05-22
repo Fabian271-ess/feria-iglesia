@@ -6,7 +6,7 @@ export const categorias = [
   { idCategoria: 2, nombre: "Construcción",          idPadre: null, descripcion: "Macetas artesanales hechas a mano" },
   { idCategoria: 3, nombre: "Chocolatería",          idPadre: null, descripcion: "Chocomensajes, chocolates, rositas y corazones" },
   // Hijos de Accesorios
-  { idCategoria: 4, nombre: "Moñas",           idPadre: 1 },
+  { idCategoria: 4, nombre: "Moñas Coquette",           idPadre: 1 },
   { idCategoria: 5, nombre: "Moña Scrunchie",  idPadre: 1 },
   { idCategoria: 6, nombre: "Diademas",        idPadre: 1 },
   // Hijos de Construcción

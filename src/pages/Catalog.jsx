@@ -9,7 +9,7 @@ import {
 
 const EMOJIS = {
   "accesorios de cabello": "🎀", "construcción": "🪴", "chocolatería": "🍫",
-  "moñas": "🎀", "moña scrunchie": "🪢", "diademas": "👑",
+  "moñas coquette": "🎀", "moña scrunchie": "🪢", "diademas": "👑",
   "chocomensajes": "💌", "chocolates sueltos": "🍫", "rositas": "🌸",
   "corazones": "❤️", "macetas pequeñas": "🪴", "macetas medianas": "🌿", "macetas grandes": "🌳",
 }

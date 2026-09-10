@@ -1,0 +1,23 @@
+import { initializeApp } from "firebase/app"
+import { initializeFirestore, persistentLocalCache, persistentSingleTabManager } from "firebase/firestore"
+
+// Estos valores vienen de tu proyecto en https://console.firebase.google.com
+// En desarrollo local se leen de un archivo .env (no lo subas a GitHub)
+// En producción (Vercel) se configuran como Environment Variables
+const firebaseConfig = {
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+}
+
+const app = initializeApp(firebaseConfig)
+
+// persistentLocalCache guarda los cambios en el propio dispositivo mientras no haya
+// conexión, y los sincroniza solo apenas vuelva la señal (incluso si se cierra la página
+// y se vuelve a abrir antes de que se hayan podido enviar).
+export const db = initializeFirestore(app, {
+  localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({}) }),
+})

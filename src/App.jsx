@@ -8,6 +8,9 @@ import Catalog from "./pages/Catalog"
 import ProductDetail from "./pages/ProductDetail"
 import Busqueda from "./pages/Busqueda"
 import NotFound from "./pages/NotFound"
+import Inventario from "./pages/Inventario"
+import InventarioCarpa from "./pages/InventarioCarpa"
+import InventarioResumen from "./pages/InventarioResumen"
 
 function Layout({ children }) {
   return (
@@ -31,6 +34,9 @@ export default function App() {
         <Route path="/catalogo/:seccion/:subseccion" element={<Layout><Catalog /></Layout>} />
         <Route path="/producto/:id"                 element={<Layout><ProductDetail /></Layout>} />
         <Route path="/busqueda"                     element={<Layout><Busqueda /></Layout>} />
+        <Route path="/inventario"                   element={<Layout><Inventario /></Layout>} />
+        <Route path="/inventario/resumen"           element={<Layout><InventarioResumen /></Layout>} />
+        <Route path="/inventario/:carpa"             element={<Layout><InventarioCarpa /></Layout>} />
         <Route path="*"                             element={<Layout><NotFound /></Layout>} />
       </Routes>
     </BrowserRouter>

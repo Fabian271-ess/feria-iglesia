@@ -1,5 +1,6 @@
 import { useNavigate, useSearchParams } from "react-router-dom"
-import { buscarProductos } from "../data/productos"
+import { buscarProductos } from "../lib/catalogoHelpers"
+import { useProductos } from "../context/ProductosContext"
 
 const EMOJIS = {
   "accesorios de cabello": "🎀", "construcción": "🪴", "repostería": "🍫",
@@ -13,7 +14,8 @@ export default function Busqueda() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const query = searchParams.get("q") || ""
-  const resultados = buscarProductos(query)
+  const { productos } = useProductos()
+  const resultados = buscarProductos(productos, query)
 
   return (
     <div style={{ background: "linear-gradient(135deg, #3d0008 0%, #1a0205 50%, #2a0a0a 100%)", minHeight: "100vh" }}>

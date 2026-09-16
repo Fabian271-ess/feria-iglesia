@@ -1,5 +1,6 @@
 import { initializeApp } from "firebase/app"
 import { initializeFirestore, persistentLocalCache, persistentSingleTabManager } from "firebase/firestore"
+import { getAuth } from "firebase/auth"
 
 // Estos valores vienen de tu proyecto en https://console.firebase.google.com
 // En desarrollo local se leen de un archivo .env (no lo subas a GitHub)
@@ -21,3 +22,5 @@ const app = initializeApp(firebaseConfig)
 export const db = initializeFirestore(app, {
   localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({}) }),
 })
+
+export const auth = getAuth(app)

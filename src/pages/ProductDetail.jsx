@@ -1,5 +1,6 @@
 import { useNavigate, useParams } from "react-router-dom"
-import { getProductoById, getProductosByCategoria } from "../data/productos"
+import { getProductoById, getProductosByCategoria } from "../lib/catalogoHelpers"
+import { useProductos } from "../context/ProductosContext"
 
 const EMOJIS = {
   "accesorios de cabello": "🎀", "construcción": "🪴", "repostería": "🍫",
@@ -12,13 +13,21 @@ const getEmoji = (nombre) => EMOJIS[nombre?.toLowerCase()] || "🛍️"
 export default function ProductDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { productos, loading } = useProductos()
 
-  const producto = getProductoById(id)
+  const producto = getProductoById(productos, id)
   const relacionados = producto
-    ? getProductosByCategoria(producto.idCategoria).filter((p) => p.idProducto !== producto.idProducto).slice(0, 4)
+    ? getProductosByCategoria(productos, producto.idCategoria).filter((p) => p.idProducto !== producto.idProducto).slice(0, 4)
     : []
 
   if (!producto) {
+    if (loading) {
+      return (
+        <div className="min-h-screen flex items-center justify-center" style={{ background: "#1a0205" }}>
+          <p style={{ color: "rgba(212,168,67,0.5)", fontSize: "16px" }}>Cargando...</p>
+        </div>
+      )
+    }
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: "#1a0205" }}>
         <div className="text-center">

@@ -6,6 +6,7 @@ const opciones = [
   { to: "/inventario/carpa1", emoji: "⛺", titulo: "Carpa 1", desc: "Registrar ventas de esta carpa" },
   { to: "/inventario/carpa2", emoji: "⛺", titulo: "Carpa 2", desc: "Registrar ventas de esta carpa" },
   { to: "/inventario/resumen", emoji: "📊", titulo: "Resumen general", desc: "Ver el total combinado en vivo" },
+  { to: "/inventario/productos", emoji: "🛠️", titulo: "Productos", desc: "Crear, editar o eliminar productos" },
 ]
 
 export default function Inventario() {

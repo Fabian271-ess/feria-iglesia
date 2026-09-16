@@ -1,11 +1,8 @@
 import { useState, useMemo } from "react"
 import { useNavigate, useParams } from "react-router-dom"
-import {
-  categorias,
-  getCategoriasSinPadre,
-  getSubcategorias,
-  getProductosByCategoria,
-} from "../data/productos"
+import { getCategoriasSinPadre, getSubcategorias } from "../data/categorias"
+import { getProductosByCategoria } from "../lib/catalogoHelpers"
+import { useProductos } from "../context/ProductosContext"
 
 const EMOJIS = {
   "accesorios de cabello": "🎀", "construcción": "🪴", "chocolatería": "🍫",
@@ -25,6 +22,7 @@ const bgGradient = "linear-gradient(135deg, #3d0008 0%, #1a0205 50%, #2a0a0a 100
 export default function Catalog() {
   const { seccion, subseccion } = useParams()
   const navigate = useNavigate()
+  const { productos, loading } = useProductos()
   const [ordenar, setOrdenar]   = useState("default")
   const [precioMax, setPrecioMax] = useState(100000)
 
@@ -37,8 +35,8 @@ export default function Catalog() {
     if (!seccion) return []
     if (seccion && !subseccion && subcategorias.length > 0) return []
     const catId = subcategoriaActiva?.idCategoria || seccionActiva?.idCategoria
-    return catId ? getProductosByCategoria(catId) : []
-  }, [seccion, subseccion, seccionActiva, subcategoriaActiva, subcategorias.length])
+    return catId ? getProductosByCategoria(productos, catId) : []
+  }, [productos, seccion, subseccion, seccionActiva, subcategoriaActiva, subcategorias.length])
 
   const productosFiltrados = useMemo(() => {
     let r = productosBase.filter((p) => p.precio <= precioMax)
@@ -206,9 +204,9 @@ export default function Catalog() {
           <div className="flex-1">
             {productosFiltrados.length === 0 ? (
               <div className="text-center py-20">
-                <p style={{ fontSize: "48px" }}>🛍️</p>
+                <p style={{ fontSize: "48px" }}>{loading ? "⏳" : "🛍️"}</p>
                 <p className="mt-4" style={{ color: "rgba(212,168,67,0.4)", fontSize: "16px" }}>
-                  No hay productos en esta categoría aún
+                  {loading ? "Cargando productos..." : "No hay productos en esta categoría aún"}
                 </p>
               </div>
             ) : (

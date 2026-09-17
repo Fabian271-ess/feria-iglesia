@@ -1,14 +1,35 @@
 import { Link } from "react-router-dom"
+import { useAuthUser } from "../lib/useAuthUser"
+import { EstadoAcceso } from "../components/EstadoAcceso"
 
 const bgGradient = "linear-gradient(135deg, #3d0008 0%, #1a0205 50%, #2a0a0a 100%)"
 
-const opciones = [
-  { to: "/inventario/carpa1", emoji: "⛺", titulo: "Carpa 1", desc: "Registrar ventas de esta carpa" },
-  { to: "/inventario/carpa2", emoji: "⛺", titulo: "Carpa 2", desc: "Registrar ventas de esta carpa" },
-  { to: "/inventario/resumen", emoji: "📊", titulo: "Resumen general", desc: "Ver el total combinado en vivo" },
+const TODAS_LAS_OPCIONES = [
+  { to: "/inventario/carpa1", emoji: "⛺", titulo: "Carpa 1", desc: "Registrar ventas de esta carpa", roles: ["admin", "gerente_carpa1"] },
+  { to: "/inventario/carpa2", emoji: "⛺", titulo: "Carpa 2", desc: "Registrar ventas de esta carpa", roles: ["admin", "gerente_carpa2"] },
+  { to: "/inventario/resumen", emoji: "📊", titulo: "Resumen", desc: "Ver el total en vivo", roles: ["admin", "resumen", "gerente_carpa1", "gerente_carpa2"] },
+  { to: "/inventario/productos", emoji: "🛠️", titulo: "Productos", desc: "Crear o eliminar productos", roles: ["admin", "gerente_carpa1", "gerente_carpa2"] },
 ]
 
 export default function Inventario() {
+  const { user, rol, cargando } = useAuthUser()
+  const puedeEntrar = !!rol
+
+  if (cargando || !user || !puedeEntrar) {
+    return (
+      <EstadoAcceso
+        cargando={cargando}
+        user={user}
+        autorizado={puedeEntrar}
+        titulo="Inventario — Iniciar sesión"
+        emoji="📦"
+        mensajeDenegado="Tu cuenta no tiene un rol asignado en el inventario."
+      />
+    )
+  }
+
+  const opciones = TODAS_LAS_OPCIONES.filter((op) => op.roles.includes(rol))
+
   return (
     <div style={{ background: bgGradient, minHeight: "100vh" }}>
       <div className="w-full py-12 px-4 text-center" style={{ borderBottom: "1px solid rgba(212,168,67,0.2)" }}>

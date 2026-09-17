@@ -1,19 +1,16 @@
 import { useNavigate, useSearchParams } from "react-router-dom"
-import { buscarProductos } from "../data/productos"
-
-const EMOJIS = {
-  "accesorios de cabello": "🎀", "construcción": "🪴", "repostería": "🍫",
-  "moñas": "🎀", "corbatas": "🎗️", "diademas": "👑",
-  "chocomensajes": "💌", "chocolates sueltos": "🍫", "rositas": "🌸",
-  "corazones": "❤️", "macetas pequeñas": "🪴", "macetas medianas": "🌿", "macetas grandes": "🌳",
-}
-const getEmoji = (nombre) => EMOJIS[nombre?.toLowerCase()] || "🛍️"
+import { buscarProductos } from "../lib/catalogoHelpers"
+import { useProductos } from "../context/ProductosContext"
+import { useCategorias } from "../context/CategoriasContext"
+import { getCategoriaById, getEmojiCategoria } from "../lib/categoriaHelpers"
 
 export default function Busqueda() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const query = searchParams.get("q") || ""
-  const resultados = buscarProductos(query)
+  const { productos } = useProductos()
+  const { categorias } = useCategorias()
+  const resultados = buscarProductos(productos, query)
 
   return (
     <div style={{ background: "linear-gradient(135deg, #3d0008 0%, #1a0205 50%, #2a0a0a 100%)", minHeight: "100vh" }}>
@@ -57,7 +54,7 @@ export default function Busqueda() {
                   {producto.imagenUrl ? (
                     <img src={producto.imagenUrl} alt={producto.nombreProducto} className="w-full h-full object-cover" />
                   ) : (
-                    <span style={{ fontSize: "56px" }}>{getEmoji(producto.categoriaNombre)}</span>
+                    <span style={{ fontSize: "56px" }}>{getEmojiCategoria(producto.categoriaNombre, getCategoriaById(categorias, producto.idCategoria)?.icono)}</span>
                   )}
                 </div>
                 <div className="p-4 flex flex-col gap-2">

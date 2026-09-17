@@ -1,76 +1,74 @@
 import { useState, useEffect, useMemo } from "react"
 import { useParams, Link } from "react-router-dom"
 import toast from "react-hot-toast"
-import { productos } from "../data/productos"
-import { suscribirCarpa, cambiarCantidad, deshacerUltimoCambio, suscribirHistorialHoy } from "../lib/inventario"
+import { useProductos } from "../context/ProductosContext"
+import { useCategorias } from "../context/CategoriasContext"
+import { useAuthUser } from "../lib/useAuthUser"
+import { EstadoAcceso } from "../components/EstadoAcceso"
+import { NOMBRES_CARPA } from "../lib/carpas"
+import { suscribirCarpa, suscribirStockCarpa, establecerStock, cambiarCantidad } from "../lib/inventario"
 import { useOnlineStatus } from "../lib/useOnlineStatus"
+import { getCategoriaById, getEmojiCategoria } from "../lib/categoriaHelpers"
 
-const PINES = {
-  carpa1: import.meta.env.VITE_PIN_CARPA1,
-  carpa2: import.meta.env.VITE_PIN_CARPA2,
-}
-
-const NOMBRES = {
-  carpa1: "Carpa 1",
-  carpa2: "Carpa 2",
-}
-
+const NOMBRES = NOMBRES_CARPA
 const bgGradient = "linear-gradient(135deg, #3d0008 0%, #1a0205 50%, #2a0a0a 100%)"
 
-const EMOJIS = {
-  "moñas coquette": "🎀", "moña scrunchie": "🪢", "diademas": "👑",
-  "chocomensajes": "💌", "chocolates sueltos": "🍫", "rositas": "🌸",
-  "corazones": "❤️", "macetas pequeñas": "🪴", "macetas grandes": "🌳",
-}
-const getEmoji = (nombre) => EMOJIS[nombre?.toLowerCase()] || "🛍️"
-
-const normalize = (str) =>
-  str?.toLowerCase()
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+const normalize = (str) => str?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
 
 export default function InventarioCarpa() {
   const { carpa } = useParams() // "carpa1" | "carpa2"
   const online = useOnlineStatus()
-  const [desbloqueado, setDesbloqueado] = useState(
-    () => sessionStorage.getItem(`inv_${carpa}`) === "ok"
-  )
-  const [pin, setPin] = useState("")
-  const [error, setError] = useState("")
+  const { user, rol, cargando } = useAuthUser()
+  const { productos, loading: cargandoProductos } = useProductos()
+  const { categorias: categoriasFirestore } = useCategorias()
+
   const [ventas, setVentas] = useState({})
+  const [stock, setStock] = useState({})
   const [busqueda, setBusqueda] = useState("")
   const [categoria, setCategoria] = useState("todas")
-  const [historial, setHistorial] = useState([])
-  const [verHistorial, setVerHistorial] = useState(false)
+  const [editandoStock, setEditandoStock] = useState(null)
+  const [valorStock, setValorStock] = useState("")
+  const [verAgregar, setVerAgregar] = useState(false)
+
+  const puedeEntrar = rol === "admin" || rol === `gerente_${carpa}`
 
   useEffect(() => {
-    if (!desbloqueado || !carpa) return
+    if (!puedeEntrar || !carpa) return
     const unsub = suscribirCarpa(carpa, setVentas)
     return unsub
-  }, [desbloqueado, carpa])
+  }, [puedeEntrar, carpa])
 
   useEffect(() => {
-    if (!desbloqueado || !carpa) return
-    const unsub = suscribirHistorialHoy(carpa, setHistorial)
+    if (!puedeEntrar || !carpa) return
+    const unsub = suscribirStockCarpa(carpa, setStock)
     return unsub
-  }, [desbloqueado, carpa])
+  }, [puedeEntrar, carpa])
 
   const categorias = useMemo(() => {
     const set = new Set(productos.map((p) => p.categoriaNombre))
     return ["todas", ...set]
-  }, [])
+  }, [productos])
 
   const productosFiltrados = useMemo(() => {
     const q = normalize(busqueda)
     return productos
       .filter((p) => {
+        const tieneStockAqui = stock[p.idProducto] != null
         const coincideCategoria = categoria === "todas" || p.categoriaNombre === categoria
         const coincideBusqueda = !q || normalize(p.nombreProducto).includes(q)
-        return coincideCategoria && coincideBusqueda
+        return tieneStockAqui && coincideCategoria && coincideBusqueda
       })
       .sort((a, b) => a.idProducto - b.idProducto)
-  }, [busqueda, categoria])
+  }, [productos, stock, busqueda, categoria])
 
-  if (!carpa || !PINES[carpa]) {
+  // Productos del catálogo que esta carpa todavía no ha agregado (sin stock asignado aquí).
+  const productosSinAgregar = useMemo(() => {
+    return productos
+      .filter((p) => stock[p.idProducto] == null)
+      .sort((a, b) => a.idProducto - b.idProducto)
+  }, [productos, stock])
+
+  if (!carpa || !NOMBRES[carpa]) {
     return (
       <div style={{ background: bgGradient, minHeight: "100vh" }} className="flex items-center justify-center px-4">
         <p style={{ color: "rgba(212,168,67,0.6)" }}>Carpa no válida.</p>
@@ -78,130 +76,60 @@ export default function InventarioCarpa() {
     )
   }
 
-  const intentarEntrar = (e) => {
-    e.preventDefault()
-    if (pin === PINES[carpa]) {
-      sessionStorage.setItem(`inv_${carpa}`, "ok")
-      setDesbloqueado(true)
-      setError("")
-    } else {
-      setError("PIN incorrecto")
-    }
-  }
-
-  if (!desbloqueado) {
+  if (cargando || !user || !puedeEntrar) {
     return (
-      <div style={{ background: bgGradient, minHeight: "100vh" }} className="flex items-center justify-center px-4">
-        <div className="w-full max-w-sm py-10 px-8 rounded-2xl" style={{ background: "rgba(26,2,5,0.9)", border: "1px solid rgba(212,168,67,0.25)" }}>
-          <p className="text-center mb-1" style={{ fontSize: "40px" }}>⛺</p>
-          <h1 className="font-black uppercase text-center mb-6" style={{ color: "#d4a843", fontFamily: "'Arial Black', sans-serif", fontSize: "20px", letterSpacing: "3px" }}>
-            {NOMBRES[carpa]}
-          </h1>
-          <form onSubmit={intentarEntrar} className="flex flex-col gap-3">
-            <input
-              type="password"
-              inputMode="numeric"
-              autoFocus
-              value={pin}
-              onChange={(e) => setPin(e.target.value)}
-              placeholder="PIN"
-              className="rounded-lg px-4 py-3 text-center text-lg tracking-widest outline-none"
-              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(212,168,67,0.35)", color: "#f5e6c8" }}
-            />
-            {error && <p className="text-sm text-center" style={{ color: "#ff8080" }}>{error}</p>}
-            <button
-              type="submit"
-              className="rounded-lg py-3 font-black uppercase transition-all duration-200 active:scale-95"
-              style={{ background: "#d4a843", color: "#1a0205", letterSpacing: "2px", fontSize: "13px" }}
-            >
-              Entrar
-            </button>
-          </form>
-        </div>
-      </div>
+      <EstadoAcceso
+        cargando={cargando}
+        user={user}
+        autorizado={puedeEntrar}
+        titulo={`${NOMBRES[carpa]} — Iniciar sesión`}
+        emoji="⛺"
+        mensajeDenegado={`Tu cuenta no tiene acceso a ${NOMBRES[carpa]}.`}
+      />
     )
   }
 
   const total = productos.reduce((acc, p) => acc + (ventas[p.idProducto] || 0) * p.precio, 0)
 
-  const handleDeshacer = async () => {
-    const deshecho = await deshacerUltimoCambio(carpa)
-    if (!deshecho) {
-      toast("No hay nada para deshacer", { icon: "ℹ️" })
-      return
+  const iniciarEdicionStock = (idProducto) => {
+    setEditandoStock(idProducto)
+    setValorStock(stock[idProducto] ?? "")
+  }
+
+  const guardarStock = async (idProducto) => {
+    const cantidad = valorStock === "" ? null : Number(valorStock)
+    setEditandoStock(null)
+    try {
+      await establecerStock(carpa, idProducto, cantidad)
+    } catch {
+      toast.error("No se pudo guardar el stock")
     }
-    toast.success(`Deshecho: ${deshecho.nombreProducto}`)
   }
 
   return (
     <div style={{ background: bgGradient, minHeight: "100vh" }}>
       {!online && (
-        <div
-          className="w-full py-2 px-4 text-center font-bold uppercase"
-          style={{ background: "#8b0000", color: "#f5e6c8", fontSize: "12px", letterSpacing: "1px" }}
-        >
+        <div className="w-full py-2 px-4 text-center font-bold uppercase" style={{ background: "#8b0000", color: "#f5e6c8", fontSize: "12px", letterSpacing: "1px" }}>
           ⚠ Sin conexión — tus cambios se guardan en el celular y se enviarán solos cuando vuelva la señal
         </div>
       )}
       {/* Encabezado */}
       <div className="w-full py-8 px-4 text-center" style={{ borderBottom: "1px solid rgba(212,168,67,0.2)" }}>
-        <div className="flex items-center justify-center gap-2 mb-3">
+        <div className="flex items-center justify-center gap-3 mb-3">
           <Link to="/inventario" style={{ color: "rgba(212,168,67,0.4)", fontSize: "11px", letterSpacing: "2px" }}>← INVENTARIO</Link>
         </div>
         <h1 className="font-black uppercase" style={{ color: "#d4a843", fontFamily: "'Arial Black', sans-serif", fontSize: "clamp(24px, 5vw, 36px)", letterSpacing: "4px" }}>
           {NOMBRES[carpa]}
         </h1>
-        <div
-          className="inline-flex items-center gap-2 mt-4 px-6 py-2 rounded-full"
-          style={{ background: "rgba(212,168,67,0.08)", border: "1px solid rgba(212,168,67,0.3)" }}
-        >
+        <div className="inline-flex items-center gap-2 mt-4 px-6 py-2 rounded-full" style={{ background: "rgba(212,168,67,0.08)", border: "1px solid rgba(212,168,67,0.3)" }}>
           <span style={{ color: "rgba(212,168,67,0.6)", fontSize: "11px", letterSpacing: "1px" }}>TOTAL VENDIDO</span>
           <span className="font-black" style={{ color: "#f2c96e", fontSize: "20px", fontFamily: "'Arial Black', sans-serif" }}>
             ${total.toLocaleString("es-CO")}
           </span>
         </div>
-        <div>
-          <button
-            onClick={handleDeshacer}
-            className="mt-3 text-xs font-bold uppercase"
-            style={{ color: "rgba(212,168,67,0.5)", letterSpacing: "1px" }}
-          >
-            ↩ Deshacer último cambio
-          </button>
-        </div>
       </div>
 
       <div className="max-w-3xl mx-auto px-4 py-8 pb-20">
-        {/* Historial de hoy */}
-        <div className="mb-5">
-          <button
-            onClick={() => setVerHistorial((v) => !v)}
-            className="text-xs font-bold uppercase"
-            style={{ color: "rgba(212,168,67,0.5)", letterSpacing: "1px" }}
-          >
-            {verHistorial ? "▲" : "▼"} Historial de hoy ({historial.length})
-          </button>
-
-          {verHistorial && (
-            <div className="mt-3 flex flex-col gap-1 rounded-xl p-3" style={{ background: "rgba(26,2,5,0.9)", border: "1px solid rgba(212,168,67,0.15)", maxHeight: "220px", overflowY: "auto" }}>
-              {historial.length === 0 ? (
-                <p style={{ color: "rgba(212,168,67,0.4)", fontSize: "12px" }}>Todavía no hay movimientos hoy.</p>
-              ) : (
-                historial.map((h) => (
-                  <div key={h.id} className="flex items-center justify-between text-xs py-1" style={{ borderBottom: "1px solid rgba(212,168,67,0.08)" }}>
-                    <span style={{ color: "rgba(245,230,200,0.75)" }}>
-                      {h.fecha?.toDate ? h.fecha.toDate().toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" }) : "ahora"} · {h.nombreProducto}
-                    </span>
-                    <span style={{ color: h.delta > 0 ? "#8fd694" : "#ff9b9b", fontWeight: "700" }}>
-                      {h.delta > 0 ? `+${h.delta}` : h.delta}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
-
         {/* Buscador */}
         <input
           type="text"
@@ -231,14 +159,65 @@ export default function InventarioCarpa() {
           ))}
         </div>
 
+        {/* Agregar productos del catálogo a esta carpa */}
+        {!cargandoProductos && (
+          <div className="mb-6 rounded-xl p-3" style={{ background: "rgba(26,2,5,0.9)", border: "1px solid rgba(212,168,67,0.2)" }}>
+            <button onClick={() => setVerAgregar((v) => !v)} className="text-xs font-bold uppercase w-full text-left" style={{ color: "#d4a843", letterSpacing: "1px" }}>
+              {verAgregar ? "▲" : "▼"} Agregar productos a esta carpa ({productosSinAgregar.length})
+            </button>
+            {verAgregar && (
+              <div className="mt-3 flex flex-col gap-2" style={{ maxHeight: "260px", overflowY: "auto" }}>
+                {productosSinAgregar.length === 0 ? (
+                  <p style={{ color: "rgba(212,168,67,0.4)", fontSize: "12px" }}>Ya agregaste todo el catálogo a esta carpa.</p>
+                ) : (
+                  productosSinAgregar.map((p) => (
+                    <div key={p.idProducto} className="flex items-center justify-between gap-3 py-1" style={{ borderBottom: "1px solid rgba(212,168,67,0.08)" }}>
+                      <span style={{ color: "rgba(245,230,200,0.8)", fontSize: "12px" }}>{p.nombreProducto}</span>
+                      {editandoStock === p.idProducto ? (
+                        <input
+                          type="number"
+                          autoFocus
+                          value={valorStock}
+                          onChange={(e) => setValorStock(e.target.value)}
+                          onBlur={() => guardarStock(p.idProducto)}
+                          onKeyDown={(e) => e.key === "Enter" && guardarStock(p.idProducto)}
+                          placeholder="Stock"
+                          className="w-20 rounded px-2 py-1 text-xs outline-none flex-shrink-0"
+                          style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(212,168,67,0.4)", color: "#f5e6c8" }}
+                        />
+                      ) : (
+                        <button
+                          onClick={() => iniciarEdicionStock(p.idProducto)}
+                          className="text-xs font-bold px-3 py-1 rounded-lg flex-shrink-0"
+                          style={{ border: "1px solid rgba(212,168,67,0.4)", color: "#d4a843" }}
+                        >
+                          + Agregar
+                        </button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Lista de productos */}
-        {productosFiltrados.length === 0 ? (
-          <p className="text-center py-16" style={{ color: "rgba(212,168,67,0.4)" }}>No se encontraron productos.</p>
+        {cargandoProductos ? (
+          <p className="text-center py-16" style={{ color: "rgba(212,168,67,0.4)" }}>Cargando productos...</p>
+        ) : productosFiltrados.length === 0 ? (
+          <p className="text-center py-16" style={{ color: "rgba(212,168,67,0.4)" }}>
+            {productos.length === 0 ? "No se encontraron productos." : "Todavía no has agregado productos a esta carpa."}
+          </p>
         ) : (
           <div className="flex flex-col gap-3">
             {productosFiltrados.map((p) => {
               const cantidad = ventas[p.idProducto] || 0
               const subtotal = cantidad * p.precio
+              const stockProducto = stock[p.idProducto]
+              const tieneStock = stockProducto != null
+              const restante = tieneStock ? stockProducto - cantidad : null
+              const agotado = tieneStock && restante <= 0
               return (
                 <div
                   key={p.idProducto}
@@ -249,18 +228,34 @@ export default function InventarioCarpa() {
                     {p.imagenUrl ? (
                       <img src={p.imagenUrl} alt={p.nombreProducto} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = "none" }} />
                     ) : (
-                      <span style={{ fontSize: "24px" }}>{getEmoji(p.categoriaNombre)}</span>
+                      <span style={{ fontSize: "24px" }}>{getEmojiCategoria(p.categoriaNombre, getCategoriaById(categoriasFirestore, p.idCategoria)?.icono)}</span>
                     )}
                   </div>
-
                   <div className="min-w-0 flex-1">
                     <p className="font-bold truncate" style={{ color: "white", fontSize: "13px" }}>{p.nombreProducto}</p>
                     <p style={{ color: "#d4a843", fontSize: "14px", fontWeight: "800" }}>${p.precio.toLocaleString("es-CO")}</p>
-                    {cantidad > 0 && (
-                      <p style={{ color: "rgba(212,168,67,0.5)", fontSize: "11px" }}>Subtotal: ${subtotal.toLocaleString("es-CO")}</p>
+                    {editandoStock === p.idProducto ? (
+                      <input
+                        type="number"
+                        autoFocus
+                        value={valorStock}
+                        onChange={(e) => setValorStock(e.target.value)}
+                        onBlur={() => guardarStock(p.idProducto)}
+                        onKeyDown={(e) => e.key === "Enter" && guardarStock(p.idProducto)}
+                        placeholder="Stock en esta carpa"
+                        className="mt-1 w-28 rounded px-2 py-1 text-xs outline-none"
+                        style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(212,168,67,0.4)", color: "#f5e6c8" }}
+                      />
+                    ) : (
+                      <button
+                        onClick={() => iniciarEdicionStock(p.idProducto)}
+                        style={{ color: agotado ? "#ff9b9b" : "rgba(212,168,67,0.4)", fontSize: "10px", fontWeight: agotado ? "700" : "400" }}
+                      >
+                        {tieneStock ? (agotado ? "Agotado · editar" : `Quedan: ${restante} · editar`) : "Definir stock en esta carpa"}
+                      </button>
                     )}
+                    {cantidad > 0 && <p style={{ color: "rgba(212,168,67,0.5)", fontSize: "11px" }}>Subtotal: ${subtotal.toLocaleString("es-CO")}</p>}
                   </div>
-
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <button
                       onClick={() => cambiarCantidad(carpa, p.idProducto, -1, p.nombreProducto)}
@@ -273,7 +268,8 @@ export default function InventarioCarpa() {
                     <span className="w-6 text-center font-black" style={{ color: "#f5e6c8", fontSize: "15px" }}>{cantidad}</span>
                     <button
                       onClick={() => cambiarCantidad(carpa, p.idProducto, 1, p.nombreProducto)}
-                      className="w-9 h-9 rounded-lg font-black text-lg"
+                      disabled={agotado}
+                      className="w-9 h-9 rounded-lg font-black text-lg disabled:opacity-20"
                       style={{ background: "#d4a843", color: "#1a0205" }}
                     >
                       +

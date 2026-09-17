@@ -7,7 +7,11 @@ import {
 import { db } from "../firebase"
 
 // Un documento por carpa: inventario/carpa1, inventario/carpa2
-// Cada documento tiene un campo "ventas": { [idProducto]: cantidadVendida }
+// Cada documento tiene:
+//   - "ventas": { [idProducto]: cantidadVendida }
+//   - "stock": { [idProducto]: cantidadDisponible } — el stock es de la carpa, no del
+//     producto, así un mismo producto compartido puede tener cantidades distintas en
+//     cada carpa.
 // Y una subcolección "historial" con cada cambio, para poder deshacer.
 
 export function suscribirCarpa(carpaId, callback) {
@@ -15,6 +19,18 @@ export function suscribirCarpa(carpaId, callback) {
   return onSnapshot(ref, (snap) => {
     callback(snap.exists() ? snap.data().ventas || {} : {})
   })
+}
+
+export function suscribirStockCarpa(carpaId, callback) {
+  const ref = doc(db, "inventario", carpaId)
+  return onSnapshot(ref, (snap) => {
+    callback(snap.exists() ? snap.data().stock || {} : {})
+  })
+}
+
+export async function establecerStock(carpaId, idProducto, cantidad) {
+  const ref = doc(db, "inventario", carpaId)
+  await setDoc(ref, { stock: { [idProducto]: cantidad } }, { merge: true })
 }
 
 export async function cambiarCantidad(carpaId, idProducto, delta, nombreProducto) {

@@ -1,20 +1,15 @@
 import { useNavigate, useSearchParams } from "react-router-dom"
 import { buscarProductos } from "../lib/catalogoHelpers"
 import { useProductos } from "../context/ProductosContext"
-
-const EMOJIS = {
-  "accesorios de cabello": "🎀", "construcción": "🪴", "repostería": "🍫",
-  "moñas": "🎀", "corbatas": "🎗️", "diademas": "👑",
-  "chocomensajes": "💌", "chocolates sueltos": "🍫", "rositas": "🌸",
-  "corazones": "❤️", "macetas pequeñas": "🪴", "macetas medianas": "🌿", "macetas grandes": "🌳",
-}
-const getEmoji = (nombre) => EMOJIS[nombre?.toLowerCase()] || "🛍️"
+import { useCategorias } from "../context/CategoriasContext"
+import { getCategoriaById, getEmojiCategoria } from "../lib/categoriaHelpers"
 
 export default function Busqueda() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const query = searchParams.get("q") || ""
   const { productos } = useProductos()
+  const { categorias } = useCategorias()
   const resultados = buscarProductos(productos, query)
 
   return (
@@ -59,7 +54,7 @@ export default function Busqueda() {
                   {producto.imagenUrl ? (
                     <img src={producto.imagenUrl} alt={producto.nombreProducto} className="w-full h-full object-cover" />
                   ) : (
-                    <span style={{ fontSize: "56px" }}>{getEmoji(producto.categoriaNombre)}</span>
+                    <span style={{ fontSize: "56px" }}>{getEmojiCategoria(producto.categoriaNombre, getCategoriaById(categorias, producto.idCategoria)?.icono)}</span>
                   )}
                 </div>
                 <div className="p-4 flex flex-col gap-2">

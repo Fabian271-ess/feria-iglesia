@@ -1,19 +1,14 @@
 import { useNavigate, useParams } from "react-router-dom"
 import { getProductoById, getProductosByCategoria } from "../lib/catalogoHelpers"
 import { useProductos } from "../context/ProductosContext"
-
-const EMOJIS = {
-  "accesorios de cabello": "🎀", "construcción": "🪴", "repostería": "🍫",
-  "moñas": "🎀", "corbatas": "🎗️", "diademas": "👑",
-  "chocomensajes": "💌", "chocolates sueltos": "🍫", "rositas": "🌸",
-  "corazones": "❤️", "macetas pequeñas": "🪴", "macetas medianas": "🌿", "macetas grandes": "🌳",
-}
-const getEmoji = (nombre) => EMOJIS[nombre?.toLowerCase()] || "🛍️"
+import { useCategorias } from "../context/CategoriasContext"
+import { getCategoriaById, getEmojiCategoria } from "../lib/categoriaHelpers"
 
 export default function ProductDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { productos, loading } = useProductos()
+  const { categorias } = useCategorias()
 
   const producto = getProductoById(productos, id)
   const relacionados = producto
@@ -72,7 +67,7 @@ export default function ProductDetail() {
             {producto.imagenUrl ? (
               <img src={producto.imagenUrl} alt={producto.nombreProducto} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = "none" }} />
             ) : (
-              <span style={{ fontSize: "120px" }}>{getEmoji(producto.categoriaNombre)}</span>
+              <span style={{ fontSize: "120px" }}>{getEmojiCategoria(producto.categoriaNombre, getCategoriaById(categorias, producto.idCategoria)?.icono)}</span>
             )}
           </div>
 
@@ -139,7 +134,7 @@ export default function ProductDetail() {
                     {p.imagenUrl ? (
                       <img src={p.imagenUrl} alt={p.nombreProducto} className="w-full h-full object-cover" />
                     ) : (
-                      <span style={{ fontSize: "52px" }}>{getEmoji(p.categoriaNombre)}</span>
+                      <span style={{ fontSize: "52px" }}>{getEmojiCategoria(p.categoriaNombre, getCategoriaById(categorias, p.idCategoria)?.icono)}</span>
                     )}
                   </div>
                   <div className="p-3 flex flex-col gap-1">

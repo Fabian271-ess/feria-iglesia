@@ -2,21 +2,17 @@ import { useState, useEffect, useMemo } from "react"
 import { useParams, Link } from "react-router-dom"
 import toast from "react-hot-toast"
 import { useProductos } from "../context/ProductosContext"
+import { useCategorias } from "../context/CategoriasContext"
 import { useAuthUser } from "../lib/useAuthUser"
-import { cerrarSesion } from "../lib/auth"
-import LoginForm from "../components/LoginForm"
+import { useCerrarSesion } from "../lib/useCerrarSesion"
+import { EstadoAcceso } from "../components/EstadoAcceso"
+import { NOMBRES_CARPA } from "../lib/carpas"
 import { suscribirCarpa, cambiarCantidad, deshacerUltimoCambio, suscribirHistorialHoy } from "../lib/inventario"
 import { useOnlineStatus } from "../lib/useOnlineStatus"
+import { getCategoriaById, getEmojiCategoria } from "../lib/categoriaHelpers"
 
-const NOMBRES = { carpa1: "Carpa 1", carpa2: "Carpa 2" }
+const NOMBRES = NOMBRES_CARPA
 const bgGradient = "linear-gradient(135deg, #3d0008 0%, #1a0205 50%, #2a0a0a 100%)"
-
-const EMOJIS = {
-  "moñas coquette": "🎀", "moña scrunchie": "🪢", "diademas": "👑",
-  "chocomensajes": "💌", "chocolates sueltos": "🍫", "rositas": "🌸",
-  "corazones": "❤️", "macetas pequeñas": "🪴", "macetas grandes": "🌳",
-}
-const getEmoji = (nombre) => EMOJIS[nombre?.toLowerCase()] || "🛍️"
 
 const normalize = (str) => str?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
 
@@ -24,7 +20,9 @@ export default function InventarioCarpa() {
   const { carpa } = useParams() // "carpa1" | "carpa2"
   const online = useOnlineStatus()
   const { user, rol, cargando } = useAuthUser()
+  const cerrarSesion = useCerrarSesion()
   const { productos, loading: cargandoProductos } = useProductos()
+  const { categorias: categoriasFirestore } = useCategorias()
 
   const [ventas, setVentas] = useState({})
   const [busqueda, setBusqueda] = useState("")
@@ -32,7 +30,7 @@ export default function InventarioCarpa() {
   const [historial, setHistorial] = useState([])
   const [verHistorial, setVerHistorial] = useState(false)
 
-  const puedeEntrar = rol === carpa || rol === "admin"
+  const puedeEntrar = rol === "admin" || rol === `gerente_${carpa}`
 
   useEffect(() => {
     if (!puedeEntrar || !carpa) return
@@ -55,12 +53,13 @@ export default function InventarioCarpa() {
     const q = normalize(busqueda)
     return productos
       .filter((p) => {
+        const esDeEstaCarpa = !p.carpaId || p.carpaId === carpa
         const coincideCategoria = categoria === "todas" || p.categoriaNombre === categoria
         const coincideBusqueda = !q || normalize(p.nombreProducto).includes(q)
-        return coincideCategoria && coincideBusqueda
+        return esDeEstaCarpa && coincideCategoria && coincideBusqueda
       })
       .sort((a, b) => a.idProducto - b.idProducto)
-  }, [productos, busqueda, categoria])
+  }, [productos, busqueda, categoria, carpa])
 
   if (!carpa || !NOMBRES[carpa]) {
     return (
@@ -70,18 +69,16 @@ export default function InventarioCarpa() {
     )
   }
 
-  if (cargando) return null
-
-  if (!user) {
-    return <LoginForm titulo={`${NOMBRES[carpa]} — Iniciar sesión`} emoji="⛺" />
-  }
-
-  if (!puedeEntrar) {
+  if (cargando || !user || !puedeEntrar) {
     return (
-      <div style={{ background: bgGradient, minHeight: "100vh" }} className="flex flex-col items-center justify-center px-4 gap-4">
-        <p style={{ color: "rgba(212,168,67,0.6)" }}>Tu cuenta no tiene acceso a {NOMBRES[carpa]}.</p>
-        <button onClick={cerrarSesion} className="text-xs underline" style={{ color: "rgba(212,168,67,0.5)" }}>Cerrar sesión</button>
-      </div>
+      <EstadoAcceso
+        cargando={cargando}
+        user={user}
+        autorizado={puedeEntrar}
+        titulo={`${NOMBRES[carpa]} — Iniciar sesión`}
+        emoji="⛺"
+        mensajeDenegado={`Tu cuenta no tiene acceso a ${NOMBRES[carpa]}.`}
+      />
     )
   }
 
@@ -201,12 +198,13 @@ export default function InventarioCarpa() {
                     {p.imagenUrl ? (
                       <img src={p.imagenUrl} alt={p.nombreProducto} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = "none" }} />
                     ) : (
-                      <span style={{ fontSize: "24px" }}>{getEmoji(p.categoriaNombre)}</span>
+                      <span style={{ fontSize: "24px" }}>{getEmojiCategoria(p.categoriaNombre, getCategoriaById(categoriasFirestore, p.idCategoria)?.icono)}</span>
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="font-bold truncate" style={{ color: "white", fontSize: "13px" }}>{p.nombreProducto}</p>
                     <p style={{ color: "#d4a843", fontSize: "14px", fontWeight: "800" }}>${p.precio.toLocaleString("es-CO")}</p>
+                    {p.cantidadDisponible != null && <p style={{ color: "rgba(212,168,67,0.4)", fontSize: "10px" }}>En existencia: {p.cantidadDisponible}</p>}
                     {cantidad > 0 && <p style={{ color: "rgba(212,168,67,0.5)", fontSize: "11px" }}>Subtotal: ${subtotal.toLocaleString("es-CO")}</p>}
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">

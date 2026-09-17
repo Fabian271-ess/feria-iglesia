@@ -1,39 +1,68 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
 import toast from "react-hot-toast"
 import { useProductos } from "../context/ProductosContext"
+import { useCategorias } from "../context/CategoriasContext"
 import { useAuthUser } from "../lib/useAuthUser"
-import { cerrarSesion } from "../lib/auth"
-import LoginForm from "../components/LoginForm"
-import { categorias } from "../data/categorias"
-import { crearProducto, actualizarProducto, eliminarProducto, migrarProductosSemilla } from "../lib/productosFirestore"
+import { EstadoAcceso } from "../components/EstadoAcceso"
+import { NOMBRES_CARPA } from "../lib/carpas"
+import { getCategoriasSinPadre, getSubcategorias } from "../lib/categoriaHelpers"
+import { crearProducto, actualizarProducto, eliminarProducto } from "../lib/productosFirestore"
+import { crearCategoria, eliminarCategoria } from "../lib/categoriasFirestore"
+import { subirImagenCloudinary } from "../lib/cloudinary"
+import SelectorEmoji from "../components/SelectorEmoji"
+import SubirImagen from "../components/SubirImagen"
 
 const bgGradient = "linear-gradient(135deg, #3d0008 0%, #1a0205 50%, #2a0a0a 100%)"
-const categoriasHoja = categorias.filter((c) => c.idPadre) // solo las de hasta abajo, donde van los productos
 
-const formVacio = { nombreProducto: "", precio: "", idCategoria: "", imagenUrl: "", descripcion: "" }
+const formVacio = { nombreProducto: "", precio: "", idCategoria: "", imagenUrl: "", descripcion: "", cantidadDisponible: "", carpaId: "" }
+const categoriaNuevaVacia = { nombre: "", idPadre: "", icono: "" }
 
 export default function InventarioProductos() {
   const { user, rol, cargando } = useAuthUser()
   const { productos, loading: cargandoProductos } = useProductos()
+  const { categorias } = useCategorias()
   const [form, setForm] = useState(formVacio)
+  const [imagenArchivo, setImagenArchivo] = useState(null) // File elegido, pendiente de subir
+  const [previewImagen, setPreviewImagen] = useState("")
   const [editandoId, setEditandoId] = useState(null)
-  const [migrando, setMigrando] = useState(false)
+  const [guardando, setGuardando] = useState(false)
+  const [mostrarNuevaCategoria, setMostrarNuevaCategoria] = useState(false)
+  const [nuevaCategoria, setNuevaCategoria] = useState(categoriaNuevaVacia)
+  const [crearComoSeccion, setCrearComoSeccion] = useState(false)
 
-  const puedeEntrar = rol === "admin"
+  const rolEsGerente = rol?.startsWith("gerente_")
+  const carpaGerente = rolEsGerente ? rol.replace("gerente_", "") : null
+  const puedeEntrar = rol === "admin" || rolEsGerente
 
-  if (cargando) return null
-  if (!user) return <LoginForm titulo="Productos — Iniciar sesión" emoji="🛠️" />
-  if (!puedeEntrar) {
+  useEffect(() => {
+    if (!imagenArchivo) {
+      setPreviewImagen(form.imagenUrl)
+      return
+    }
+    const url = URL.createObjectURL(imagenArchivo)
+    setPreviewImagen(url)
+    return () => URL.revokeObjectURL(url)
+  }, [imagenArchivo, form.imagenUrl])
+
+  if (cargando || !user || !puedeEntrar) {
     return (
-      <div style={{ background: bgGradient, minHeight: "100vh" }} className="flex flex-col items-center justify-center px-4 gap-4">
-        <p style={{ color: "rgba(212,168,67,0.6)" }}>Solo el administrador puede editar productos.</p>
-        <button onClick={cerrarSesion} className="text-xs underline" style={{ color: "rgba(212,168,67,0.5)" }}>Cerrar sesión</button>
-      </div>
+      <EstadoAcceso
+        cargando={cargando}
+        user={user}
+        autorizado={puedeEntrar}
+        titulo="Productos — Iniciar sesión"
+        emoji="🛠️"
+        mensajeDenegado="Tu cuenta no tiene acceso a productos."
+      />
     )
   }
 
-  const limpiarForm = () => { setForm(formVacio); setEditandoId(null) }
+  const categoriasHoja = categorias.filter((c) => c.idPadre) // solo las de hasta abajo, donde van los productos
+  const seccionesPadre = getCategoriasSinPadre(categorias)
+  const productosVisibles = rolEsGerente ? productos.filter((p) => p.carpaId === carpaGerente) : productos
+
+  const limpiarForm = () => { setForm(formVacio); setImagenArchivo(null); setEditandoId(null) }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -41,17 +70,24 @@ export default function InventarioProductos() {
       toast.error("Nombre, precio y categoría son obligatorios")
       return
     }
-    const cat = categorias.find((c) => c.idCategoria === Number(form.idCategoria))
-    const data = {
-      nombreProducto: form.nombreProducto,
-      precio: Number(form.precio),
-      idCategoria: Number(form.idCategoria),
-      categoriaNombre: cat?.nombre || "",
-      imagenUrl: form.imagenUrl,
-      descripcion: form.descripcion,
-      activo: true,
-    }
+    setGuardando(true)
     try {
+      let imagenUrl = form.imagenUrl
+      if (imagenArchivo) {
+        imagenUrl = await subirImagenCloudinary(imagenArchivo)
+      }
+      const cat = categorias.find((c) => c.idCategoria === Number(form.idCategoria))
+      const data = {
+        nombreProducto: form.nombreProducto,
+        precio: Number(form.precio),
+        idCategoria: Number(form.idCategoria),
+        categoriaNombre: cat?.nombre || "",
+        imagenUrl,
+        descripcion: form.descripcion,
+        cantidadDisponible: form.cantidadDisponible === "" ? null : Number(form.cantidadDisponible),
+        carpaId: rolEsGerente ? carpaGerente : (form.carpaId || null),
+        activo: true,
+      }
       if (editandoId) {
         await actualizarProducto(editandoId, data)
         toast.success("Producto actualizado")
@@ -61,8 +97,10 @@ export default function InventarioProductos() {
         toast.success("Producto creado")
       }
       limpiarForm()
-    } catch {
-      toast.error("No se pudo guardar")
+    } catch (err) {
+      toast.error(err.message || "No se pudo guardar")
+    } finally {
+      setGuardando(false)
     }
   }
 
@@ -73,7 +111,10 @@ export default function InventarioProductos() {
       idCategoria: p.idCategoria || "",
       imagenUrl: p.imagenUrl || "",
       descripcion: p.descripcion || "",
+      cantidadDisponible: p.cantidadDisponible ?? "",
+      carpaId: p.carpaId || "",
     })
+    setImagenArchivo(null)
     setEditandoId(p._docId)
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
@@ -88,16 +129,46 @@ export default function InventarioProductos() {
     }
   }
 
-  const handleMigrar = async () => {
-    if (!confirm("Esto sube tus productos originales a Firestore. Solo debe hacerse UNA vez, con la lista vacía. ¿Continuar?")) return
-    setMigrando(true)
+  const handleCrearCategoria = async (e) => {
+    e.preventDefault()
+    if (!nuevaCategoria.nombre || (!crearComoSeccion && !nuevaCategoria.idPadre)) {
+      toast.error(crearComoSeccion ? "El nombre es obligatorio" : "Nombre y sección son obligatorios")
+      return
+    }
     try {
-      const n = await migrarProductosSemilla()
-      toast.success(`${n} productos migrados`)
-    } catch (err) {
-      toast.error(err.message || "No se pudo migrar")
-    } finally {
-      setMigrando(false)
+      const idCategoria = Math.max(0, ...categorias.map((c) => c.idCategoria || 0)) + 1
+      const idPadre = crearComoSeccion ? null : Number(nuevaCategoria.idPadre)
+      await crearCategoria({ nombre: nuevaCategoria.nombre, idPadre, idCategoria, icono: nuevaCategoria.icono || null })
+      toast.success(crearComoSeccion ? "Sección creada" : "Categoría creada")
+      if (!crearComoSeccion) setForm((f) => ({ ...f, idCategoria: String(idCategoria) }))
+      setNuevaCategoria(categoriaNuevaVacia)
+      setCrearComoSeccion(false)
+      setMostrarNuevaCategoria(false)
+    } catch {
+      toast.error(crearComoSeccion ? "No se pudo crear la sección" : "No se pudo crear la categoría")
+    }
+  }
+
+  const handleEliminarCategoria = async (cat) => {
+    if (rolEsGerente) {
+      toast.error("Solo el administrador puede eliminar categorías o secciones.")
+      return
+    }
+    const esSeccion = !cat.idPadre
+    if (esSeccion && categorias.some((c) => c.idPadre === cat.idCategoria)) {
+      toast.error("Esta sección tiene categorías dentro. Elimínalas primero.")
+      return
+    }
+    if (productos.some((p) => p.idCategoria === cat.idCategoria)) {
+      toast.error("Hay productos usando esta categoría. Muévelos o elimínalos primero.")
+      return
+    }
+    if (!confirm(`¿Eliminar "${cat.nombre}"? Esto no se puede deshacer.`)) return
+    try {
+      await eliminarCategoria(cat._docId)
+      toast.success(esSeccion ? "Sección eliminada" : "Categoría eliminada")
+    } catch {
+      toast.error("No se pudo eliminar")
     }
   }
 
@@ -108,25 +179,85 @@ export default function InventarioProductos() {
       <div className="w-full py-8 px-4 text-center" style={{ borderBottom: "1px solid rgba(212,168,67,0.2)" }}>
         <div className="flex items-center justify-center gap-3 mb-3">
           <Link to="/inventario" style={{ color: "rgba(212,168,67,0.4)", fontSize: "11px", letterSpacing: "2px" }}>← INVENTARIO</Link>
-          <span style={{ color: "rgba(212,168,67,0.25)" }}>·</span>
-          <button onClick={cerrarSesion} style={{ color: "rgba(212,168,67,0.4)", fontSize: "11px", letterSpacing: "2px" }}>CERRAR SESIÓN</button>
         </div>
         <h1 className="font-black uppercase" style={{ color: "#d4a843", fontFamily: "'Arial Black', sans-serif", fontSize: "clamp(24px, 5vw, 36px)", letterSpacing: "4px" }}>
-          Productos
+          {rolEsGerente ? `Productos — ${NOMBRES_CARPA[carpaGerente]}` : "Productos"}
         </h1>
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-8 pb-20">
-        {!cargandoProductos && productos.length === 0 && (
-          <button
-            onClick={handleMigrar}
-            disabled={migrando}
-            className="w-full mb-6 rounded-xl py-3 font-bold uppercase text-xs disabled:opacity-50"
-            style={{ border: "1px dashed rgba(212,168,67,0.5)", color: "#d4a843", letterSpacing: "1px" }}
-          >
-            {migrando ? "Migrando..." : "⬆️ Migrar productos originales a Firestore (una sola vez)"}
+        {/* Categorías y secciones */}
+        <form onSubmit={handleCrearCategoria} className="flex flex-col gap-3 mb-8 p-4 rounded-xl" style={{ background: "rgba(26,2,5,0.9)", border: "1px solid rgba(212,168,67,0.25)" }}>
+          <button type="button" onClick={() => setMostrarNuevaCategoria((v) => !v)} className="font-black uppercase text-sm mb-1 text-left" style={{ color: "#d4a843", letterSpacing: "2px" }}>
+            {mostrarNuevaCategoria ? "▲ Categorías y secciones" : "▾ Categorías y secciones"}
           </button>
-        )}
+          {mostrarNuevaCategoria && (
+            <>
+              <label className="flex items-center gap-2 text-xs font-bold uppercase" style={{ color: "rgba(212,168,67,0.6)", letterSpacing: "1px" }}>
+                <input
+                  type="checkbox"
+                  checked={crearComoSeccion}
+                  onChange={(e) => setCrearComoSeccion(e.target.checked)}
+                />
+                Es una sección nueva (sin categoría padre)
+              </label>
+              <input
+                placeholder={crearComoSeccion ? "Nombre de la sección" : "Nombre de la categoría"}
+                value={nuevaCategoria.nombre}
+                onChange={(e) => setNuevaCategoria({ ...nuevaCategoria, nombre: e.target.value })}
+                className="rounded-lg px-4 py-3 outline-none"
+                style={inputStyle}
+              />
+              <SelectorEmoji
+                value={nuevaCategoria.icono}
+                onChange={(icono) => setNuevaCategoria({ ...nuevaCategoria, icono })}
+              />
+              {!crearComoSeccion && (
+                <select
+                  value={nuevaCategoria.idPadre}
+                  onChange={(e) => setNuevaCategoria({ ...nuevaCategoria, idPadre: e.target.value })}
+                  className="rounded-lg px-4 py-3 outline-none"
+                  style={inputStyle}
+                >
+                  <option value="">Selecciona sección</option>
+                  {seccionesPadre.map((s) => <option key={s.idCategoria} value={s.idCategoria}>{s.nombre}</option>)}
+                </select>
+              )}
+              <button type="submit" className="rounded-lg py-2 font-black uppercase text-xs" style={{ background: "#d4a843", color: "#1a0205", letterSpacing: "1px" }}>
+                {crearComoSeccion ? "Crear sección" : "Crear categoría"}
+              </button>
+
+              <div className="flex flex-col gap-2 mt-2">
+                {seccionesPadre.map((sec) => (
+                  <div key={sec.idCategoria} className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold uppercase" style={{ color: "#d4a843", letterSpacing: "1px" }}>
+                        {sec.icono ? `${sec.icono} ` : ""}{sec.nombre}
+                      </span>
+                      {!rolEsGerente && (
+                        <button type="button" onClick={() => handleEliminarCategoria(sec)} className="text-xs font-bold px-2 py-1 rounded-lg" style={{ border: "1px solid rgba(255,100,100,0.4)", color: "#ff8080" }}>
+                          Eliminar
+                        </button>
+                      )}
+                    </div>
+                    {getSubcategorias(categorias, sec.idCategoria).map((cat) => (
+                      <div key={cat.idCategoria} className="flex items-center justify-between gap-2 pl-4">
+                        <span className="text-xs" style={{ color: "rgba(212,168,67,0.6)" }}>
+                          {cat.icono ? `${cat.icono} ` : ""}{cat.nombre}
+                        </span>
+                        {!rolEsGerente && (
+                          <button type="button" onClick={() => handleEliminarCategoria(cat)} className="text-xs font-bold px-2 py-1 rounded-lg" style={{ border: "1px solid rgba(255,100,100,0.4)", color: "#ff8080" }}>
+                            Eliminar
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </form>
 
         {/* Formulario */}
         <form onSubmit={handleSubmit} className="flex flex-col gap-3 mb-8 p-4 rounded-xl" style={{ background: "rgba(26,2,5,0.9)", border: "1px solid rgba(212,168,67,0.25)" }}>
@@ -135,15 +266,29 @@ export default function InventarioProductos() {
           </h2>
           <input placeholder="Nombre del producto" value={form.nombreProducto} onChange={(e) => setForm({ ...form, nombreProducto: e.target.value })} className="rounded-lg px-4 py-3 outline-none" style={inputStyle} />
           <input type="number" placeholder="Precio" value={form.precio} onChange={(e) => setForm({ ...form, precio: e.target.value })} className="rounded-lg px-4 py-3 outline-none" style={inputStyle} />
+          <input type="number" placeholder="Cantidad disponible" value={form.cantidadDisponible} onChange={(e) => setForm({ ...form, cantidadDisponible: e.target.value })} className="rounded-lg px-4 py-3 outline-none" style={inputStyle} />
           <select value={form.idCategoria} onChange={(e) => setForm({ ...form, idCategoria: e.target.value })} className="rounded-lg px-4 py-3 outline-none" style={inputStyle}>
             <option value="">Selecciona categoría</option>
             {categoriasHoja.map((c) => <option key={c.idCategoria} value={c.idCategoria}>{c.nombre}</option>)}
           </select>
-          <input placeholder="Link de la imagen (URL de Cloudinary)" value={form.imagenUrl} onChange={(e) => setForm({ ...form, imagenUrl: e.target.value })} className="rounded-lg px-4 py-3 outline-none" style={inputStyle} />
+
+          {!rolEsGerente && (
+            <select value={form.carpaId} onChange={(e) => setForm({ ...form, carpaId: e.target.value })} className="rounded-lg px-4 py-3 outline-none" style={inputStyle}>
+              <option value="">Todas las carpas</option>
+              <option value="carpa1">Solo Carpa 1</option>
+              <option value="carpa2">Solo Carpa 2</option>
+            </select>
+          )}
+          <SubirImagen
+            preview={previewImagen}
+            onArchivo={(file) => { setImagenArchivo(file); setForm((f) => ({ ...f, imagenUrl: "" })) }}
+            onLink={(imagenUrl) => { setImagenArchivo(null); setForm((f) => ({ ...f, imagenUrl })) }}
+            onQuitar={() => { setImagenArchivo(null); setForm((f) => ({ ...f, imagenUrl: "" })) }}
+          />
           <textarea placeholder="Descripción" value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} rows={2} className="rounded-lg px-4 py-3 outline-none resize-none" style={inputStyle} />
           <div className="flex gap-2">
-            <button type="submit" className="flex-1 rounded-lg py-3 font-black uppercase text-xs" style={{ background: "#d4a843", color: "#1a0205", letterSpacing: "1px" }}>
-              {editandoId ? "Guardar cambios" : "Crear producto"}
+            <button type="submit" disabled={guardando} className="flex-1 rounded-lg py-3 font-black uppercase text-xs disabled:opacity-50" style={{ background: "#d4a843", color: "#1a0205", letterSpacing: "1px" }}>
+              {guardando ? (imagenArchivo ? "Subiendo imagen..." : "Guardando...") : editandoId ? "Guardar cambios" : "Crear producto"}
             </button>
             {editandoId && (
               <button type="button" onClick={limpiarForm} className="rounded-lg py-3 px-4 font-bold uppercase text-xs" style={{ border: "1px solid rgba(212,168,67,0.4)", color: "#d4a843" }}>
@@ -158,14 +303,18 @@ export default function InventarioProductos() {
           <p className="text-center py-10" style={{ color: "rgba(212,168,67,0.4)" }}>Cargando...</p>
         ) : (
           <div className="flex flex-col gap-2">
-            {productos.map((p) => (
+            {productosVisibles.map((p) => (
               <div key={p._docId} className="flex items-center gap-3 rounded-xl p-3" style={{ background: "rgba(26,2,5,0.9)", border: "1px solid rgba(212,168,67,0.15)" }}>
                 <div className="flex-shrink-0 rounded-lg overflow-hidden" style={{ width: "44px", height: "44px", background: "rgba(139,0,0,0.15)" }}>
                   {p.imagenUrl && <img src={p.imagenUrl} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = "none" }} />}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="font-bold truncate" style={{ color: "white", fontSize: "13px" }}>{p.nombreProducto}</p>
-                  <p style={{ color: "rgba(212,168,67,0.5)", fontSize: "11px" }}>{p.categoriaNombre} · ${Number(p.precio).toLocaleString("es-CO")}</p>
+                  <p style={{ color: "rgba(212,168,67,0.5)", fontSize: "11px" }}>
+                    {p.categoriaNombre} · ${Number(p.precio).toLocaleString("es-CO")}
+                    {!rolEsGerente && p.carpaId && ` · ${NOMBRES_CARPA[p.carpaId]}`}
+                  </p>
+                  {p.cantidadDisponible != null && <p style={{ color: "rgba(212,168,67,0.4)", fontSize: "10px" }}>En existencia: {p.cantidadDisponible}</p>}
                 </div>
                 <button onClick={() => handleEditar(p)} className="text-xs font-bold px-3 py-2 rounded-lg" style={{ border: "1px solid rgba(212,168,67,0.4)", color: "#d4a843" }}>Editar</button>
                 <button onClick={() => handleEliminar(p._docId, p.nombreProducto)} className="text-xs font-bold px-3 py-2 rounded-lg" style={{ border: "1px solid rgba(255,100,100,0.4)", color: "#ff8080" }}>Eliminar</button>

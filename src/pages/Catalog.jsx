@@ -1,21 +1,9 @@
 import { useState, useMemo } from "react"
 import { useNavigate, useParams } from "react-router-dom"
-import { getCategoriasSinPadre, getSubcategorias } from "../data/categorias"
+import { getCategoriasSinPadre, getSubcategorias, getCategoriaById, normalizeSlug as normalize, getEmojiCategoria } from "../lib/categoriaHelpers"
 import { getProductosByCategoria } from "../lib/catalogoHelpers"
 import { useProductos } from "../context/ProductosContext"
-
-const EMOJIS = {
-  "accesorios de cabello": "🎀", "construcción": "🪴", "chocolatería": "🍫",
-  "moñas coquette": "🎀", "moña scrunchie": "🪢", "diademas": "👑",
-  "chocomensajes": "💌", "chocolates sueltos": "🍫", "rositas": "🌸",
-  "corazones": "❤️", "macetas pequeñas": "🪴", "macetas medianas": "🌿", "macetas grandes": "🌳",
-}
-const getEmoji = (nombre) => EMOJIS[nombre?.toLowerCase()] || "🛍️"
-
-const normalize = (str) =>
-  str?.toLowerCase()
-    .replace(/á/g, "a").replace(/é/g, "e").replace(/í/g, "i").replace(/ó/g, "o").replace(/ú|ü/g, "u")
-    .replace(/ /g, "-")
+import { useCategorias } from "../context/CategoriasContext"
 
 const bgGradient = "linear-gradient(135deg, #3d0008 0%, #1a0205 50%, #2a0a0a 100%)"
 
@@ -23,12 +11,13 @@ export default function Catalog() {
   const { seccion, subseccion } = useParams()
   const navigate = useNavigate()
   const { productos, loading } = useProductos()
+  const { categorias } = useCategorias()
   const [ordenar, setOrdenar]   = useState("default")
   const [precioMax, setPrecioMax] = useState(100000)
 
-  const secciones      = getCategoriasSinPadre()
+  const secciones      = getCategoriasSinPadre(categorias)
   const seccionActiva  = secciones.find((c) => normalize(c.nombre) === seccion)
-  const subcategorias  = seccionActiva ? getSubcategorias(seccionActiva.idCategoria) : []
+  const subcategorias  = seccionActiva ? getSubcategorias(categorias, seccionActiva.idCategoria) : []
   const subcategoriaActiva = subcategorias.find((c) => normalize(c.nombre) === subseccion)
 
   const productosBase = useMemo(() => {
@@ -67,7 +56,7 @@ export default function Catalog() {
                 onMouseEnter={(e) => { e.currentTarget.style.border = "1px solid #d4a843"; e.currentTarget.style.background = "rgba(212,168,67,0.06)" }}
                 onMouseLeave={(e) => { e.currentTarget.style.border = "1px solid rgba(212,168,67,0.2)"; e.currentTarget.style.background = "rgba(26,2,5,0.85)" }}
               >
-                <span style={{ fontSize: "56px" }}>{getEmoji(sec.nombre)}</span>
+                <span style={{ fontSize: "56px" }}>{getEmojiCategoria(sec.nombre, sec.icono)}</span>
                 <span className="font-black uppercase" style={{ color: "#d4a843", letterSpacing: "2px", fontSize: "14px", fontFamily: "'Arial Black', sans-serif" }}>
                   {sec.nombre}
                 </span>
@@ -116,7 +105,7 @@ export default function Catalog() {
                 onMouseEnter={(e) => { e.currentTarget.style.border = "1px solid #d4a843"; e.currentTarget.style.background = "rgba(212,168,67,0.06)" }}
                 onMouseLeave={(e) => { e.currentTarget.style.border = "1px solid rgba(212,168,67,0.2)"; e.currentTarget.style.background = "rgba(26,2,5,0.85)" }}
               >
-                <span style={{ fontSize: "44px" }}>{getEmoji(sub.nombre)}</span>
+                <span style={{ fontSize: "44px" }}>{getEmojiCategoria(sub.nombre, sub.icono)}</span>
                 <span className="font-black uppercase" style={{ color: "#d4a843", letterSpacing: "2px", fontSize: "13px", fontFamily: "'Arial Black', sans-serif" }}>
                   {sub.nombre}
                 </span>
@@ -224,7 +213,7 @@ export default function Catalog() {
                       {producto.imagenUrl ? (
                         <img src={producto.imagenUrl} alt={producto.nombreProducto} className="w-full h-full object-cover" onError={(e) => { e.target.style.display = "none" }} />
                       ) : (
-                        <span style={{ fontSize: "64px" }}>{getEmoji(producto.categoriaNombre)}</span>
+                        <span style={{ fontSize: "64px" }}>{getEmojiCategoria(producto.categoriaNombre, getCategoriaById(categorias, producto.idCategoria)?.icono)}</span>
                       )}
                     </div>
                     <div className="p-4 flex flex-col gap-2">

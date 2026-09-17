@@ -1,14 +1,26 @@
+import { useEffect, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import logoFeria from "../assets/logo-feria.png"
-
-const secciones = [
-  { nombre: "Accesorios de Cabello", ruta: "/catalogo/accesorios-de-cabello", emoji: "🎀", descripcion: "Moñas Coquette, corbatas y diademas artesanales", color: "#d4a843" },
-  { nombre: "Construcción",          ruta: "/catalogo/construccion",           emoji: "🪴", descripcion: "Macetas artesanales hechas a mano",       color: "#a0522d" },
-  { nombre: "Chocolatería",          ruta: "/catalogo/chocolateria",           emoji: "🍫", descripcion: "Chocomensajes, chocolates, rositas y corazones", color: "#c0392b" },
-]
+import { useCategorias } from "../context/CategoriasContext"
+import { getCategoriasSinPadre, normalizeSlug, getEmojiCategoria } from "../lib/categoriaHelpers"
 
 export default function Home() {
   const navigate = useNavigate()
+  const { categorias } = useCategorias()
+  const infoRef = useRef(null)
+  const [enInicio, setEnInicio] = useState(true)
+  const secciones = getCategoriasSinPadre(categorias).map((c) => ({
+    nombre: c.nombre,
+    ruta: `/catalogo/${normalizeSlug(c.nombre)}`,
+    emoji: getEmojiCategoria(c.nombre, c.icono),
+    descripcion: c.descripcion,
+  }))
+
+  useEffect(() => {
+    const handleScroll = () => setEnInicio(window.scrollY < 50)
+    window.addEventListener("scroll", handleScroll)
+    return () => window.removeEventListener("scroll", handleScroll)
+  }, [])
 
   return (
     <div style={{ background: "linear-gradient(135deg, #3d0008 0%, #1a0205 50%, #2a0a0a 100%)", minHeight: "100vh" }}>
@@ -31,15 +43,22 @@ export default function Home() {
           style={{ width: "min(700px, 90vw)", height: "min(700px, 80vh)", objectFit: "contain", filter: "drop-shadow(0 0 40px rgba(212,168,67,0.4))" }}
         />
 
-        <div className="absolute bottom-10 left-1/2" style={{ transform: "translateX(-50%)", animation: "scrollBounce 2s infinite" }}>
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
-            <path d="M12 5v14M5 12l7 7 7-7" stroke="#d4a843" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
+        {enInicio && (
+          <button
+            onClick={() => infoRef.current?.scrollIntoView({ behavior: "smooth" })}
+            aria-label="Bajar de sección"
+            className="absolute bottom-10 left-1/2"
+            style={{ transform: "translateX(-50%)", animation: "scrollBounce 2s infinite" }}
+          >
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none">
+              <path d="M12 5v14M5 12l7 7 7-7" stroke="#d4a843" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        )}
       </section>
 
       {/* Info */}
-      <section className="flex flex-col items-center text-center px-4 py-20">
+      <section ref={infoRef} className="flex flex-col items-center text-center px-4 py-20">
         <div
           className="mb-4 px-4 py-1 rounded-full text-xs font-bold uppercase"
           style={{ border: "1px solid rgba(212,168,67,0.4)", color: "#d4a843", letterSpacing: "4px", background: "rgba(212,168,67,0.08)" }}
@@ -79,39 +98,43 @@ export default function Home() {
       </section>
 
       {/* Secciones */}
-      <section className="max-w-7xl mx-auto px-4 pb-20">
-        <div className="text-center mb-12">
-          <p style={{ color: "rgba(212,168,67,0.4)", fontSize: "11px", letterSpacing: "6px" }}>NAVEGA POR</p>
-          <h2
-            className="font-black uppercase mt-2"
-            style={{ color: "#d4a843", fontFamily: "'Arial Black', sans-serif", fontSize: "32px", letterSpacing: "4px" }}
-          >
-            Secciones
-          </h2>
-          <div className="w-16 h-px mx-auto mt-4" style={{ background: "linear-gradient(90deg, transparent, #d4a843, transparent)" }} />
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {secciones.map((sec) => (
-            <button
-              key={sec.nombre}
-              onClick={() => navigate(sec.ruta)}
-              className="relative group flex flex-col items-center justify-center gap-4 py-12 px-6 rounded-xl transition-all duration-300 active:scale-95"
-              style={{ background: "rgba(26,2,5,0.85)", border: "1px solid rgba(212,168,67,0.2)" }}
-              onMouseEnter={(e) => { e.currentTarget.style.border = `1px solid ${sec.color}`; e.currentTarget.style.background = "rgba(212,168,67,0.06)" }}
-              onMouseLeave={(e) => { e.currentTarget.style.border = "1px solid rgba(212,168,67,0.2)"; e.currentTarget.style.background = "rgba(26,2,5,0.85)" }}
+      {secciones.length > 0 && (
+        <section className="max-w-7xl mx-auto px-4 pb-20">
+          <div className="text-center mb-12">
+            <p style={{ color: "rgba(212,168,67,0.4)", fontSize: "11px", letterSpacing: "6px" }}>NAVEGA POR</p>
+            <h2
+              className="font-black uppercase mt-2"
+              style={{ color: "#d4a843", fontFamily: "'Arial Black', sans-serif", fontSize: "32px", letterSpacing: "4px" }}
             >
-              <span style={{ fontSize: "52px" }}>{sec.emoji}</span>
-              <span className="font-black uppercase" style={{ color: "#d4a843", letterSpacing: "2px", fontSize: "14px", fontFamily: "'Arial Black', sans-serif" }}>
-                {sec.nombre}
-              </span>
-              <span style={{ color: "rgba(212,168,67,0.5)", fontSize: "12px", lineHeight: "1.6" }}>
-                {sec.descripcion}
-              </span>
-            </button>
-          ))}
-        </div>
-      </section>
+              Secciones
+            </h2>
+            <div className="w-16 h-px mx-auto mt-4" style={{ background: "linear-gradient(90deg, transparent, #d4a843, transparent)" }} />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {secciones.map((sec) => (
+              <button
+                key={sec.nombre}
+                onClick={() => navigate(sec.ruta)}
+                className="relative group flex flex-col items-center justify-center gap-4 py-12 px-6 rounded-xl transition-all duration-300 active:scale-95"
+                style={{ background: "rgba(26,2,5,0.85)", border: "1px solid rgba(212,168,67,0.2)" }}
+                onMouseEnter={(e) => { e.currentTarget.style.border = "1px solid #d4a843"; e.currentTarget.style.background = "rgba(212,168,67,0.06)" }}
+                onMouseLeave={(e) => { e.currentTarget.style.border = "1px solid rgba(212,168,67,0.2)"; e.currentTarget.style.background = "rgba(26,2,5,0.85)" }}
+              >
+                <span style={{ fontSize: "52px" }}>{sec.emoji}</span>
+                <span className="font-black uppercase" style={{ color: "#d4a843", letterSpacing: "2px", fontSize: "14px", fontFamily: "'Arial Black', sans-serif" }}>
+                  {sec.nombre}
+                </span>
+                {sec.descripcion && (
+                  <span style={{ color: "rgba(212,168,67,0.5)", fontSize: "12px", lineHeight: "1.6" }}>
+                    {sec.descripcion}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   )
 }

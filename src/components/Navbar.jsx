@@ -3,10 +3,13 @@ import { Link, useNavigate } from "react-router-dom"
 import logoFeria from "../assets/logo-feria.png"
 import { useAuthUser } from "../lib/useAuthUser"
 import { useCerrarSesion } from "../lib/useCerrarSesion"
-import { useCategorias } from "../context/CategoriasContext"
-import { getCategoriasSinPadre, normalizeSlug } from "../lib/categoriaHelpers"
 import LoginModal from "./LoginModal"
 import Icono from "./Icono"
+
+const SECCIONES_MENU = [
+  { nombre: "Productos", ruta: "/productos" },
+  { nombre: "Categorías", ruta: "/categorias" },
+]
 
 export default function Navbar() {
   const [menuAbierto, setMenuAbierto]         = useState(false)
@@ -16,12 +19,6 @@ export default function Navbar() {
   const navigate = useNavigate()
   const { user } = useAuthUser()
   const cerrarSesion = useCerrarSesion()
-  const { categorias } = useCategorias()
-
-  const secciones = getCategoriasSinPadre(categorias).map((c) => ({
-    nombre: c.nombre,
-    ruta: `/catalogo/${normalizeSlug(c.nombre)}`,
-  }))
 
   const handleBusqueda = (e) => {
     e.preventDefault()
@@ -58,7 +55,7 @@ export default function Navbar() {
 
         {/* Secciones desktop */}
         <nav className="hidden md:flex items-center gap-5">
-          {secciones.map((sec) => (
+          {SECCIONES_MENU.map((sec) => (
             <Link
               key={sec.nombre}
               to={sec.ruta}
@@ -157,7 +154,7 @@ export default function Navbar() {
               style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(212,168,67,0.3)", color: "#f5e6c8" }}
             />
           </form>
-          {secciones.map((sec) => (
+          {SECCIONES_MENU.map((sec) => (
             <Link
               key={sec.nombre}
               to={sec.ruta}

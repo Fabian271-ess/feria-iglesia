@@ -4,10 +4,9 @@ import toast from "react-hot-toast"
 import { useProductos } from "../context/ProductosContext"
 import { useCategorias } from "../context/CategoriasContext"
 import { useAuthUser } from "../lib/useAuthUser"
-import { useCerrarSesion } from "../lib/useCerrarSesion"
 import { EstadoAcceso } from "../components/EstadoAcceso"
 import { NOMBRES_CARPA } from "../lib/carpas"
-import { suscribirCarpa, cambiarCantidad, deshacerUltimoCambio, suscribirHistorialHoy } from "../lib/inventario"
+import { suscribirCarpa, suscribirStockCarpa, establecerStock, cambiarCantidad } from "../lib/inventario"
 import { useOnlineStatus } from "../lib/useOnlineStatus"
 import { getCategoriaById, getEmojiCategoria } from "../lib/categoriaHelpers"
 
@@ -20,15 +19,16 @@ export default function InventarioCarpa() {
   const { carpa } = useParams() // "carpa1" | "carpa2"
   const online = useOnlineStatus()
   const { user, rol, cargando } = useAuthUser()
-  const cerrarSesion = useCerrarSesion()
   const { productos, loading: cargandoProductos } = useProductos()
   const { categorias: categoriasFirestore } = useCategorias()
 
   const [ventas, setVentas] = useState({})
+  const [stock, setStock] = useState({})
   const [busqueda, setBusqueda] = useState("")
   const [categoria, setCategoria] = useState("todas")
-  const [historial, setHistorial] = useState([])
-  const [verHistorial, setVerHistorial] = useState(false)
+  const [editandoStock, setEditandoStock] = useState(null)
+  const [valorStock, setValorStock] = useState("")
+  const [verAgregar, setVerAgregar] = useState(false)
 
   const puedeEntrar = rol === "admin" || rol === `gerente_${carpa}`
 
@@ -40,7 +40,7 @@ export default function InventarioCarpa() {
 
   useEffect(() => {
     if (!puedeEntrar || !carpa) return
-    const unsub = suscribirHistorialHoy(carpa, setHistorial)
+    const unsub = suscribirStockCarpa(carpa, setStock)
     return unsub
   }, [puedeEntrar, carpa])
 
@@ -53,13 +53,20 @@ export default function InventarioCarpa() {
     const q = normalize(busqueda)
     return productos
       .filter((p) => {
-        const esDeEstaCarpa = !p.carpaId || p.carpaId === carpa
+        const tieneStockAqui = stock[p.idProducto] != null
         const coincideCategoria = categoria === "todas" || p.categoriaNombre === categoria
         const coincideBusqueda = !q || normalize(p.nombreProducto).includes(q)
-        return esDeEstaCarpa && coincideCategoria && coincideBusqueda
+        return tieneStockAqui && coincideCategoria && coincideBusqueda
       })
       .sort((a, b) => a.idProducto - b.idProducto)
-  }, [productos, busqueda, categoria, carpa])
+  }, [productos, stock, busqueda, categoria])
+
+  // Productos del catálogo que esta carpa todavía no ha agregado (sin stock asignado aquí).
+  const productosSinAgregar = useMemo(() => {
+    return productos
+      .filter((p) => stock[p.idProducto] == null)
+      .sort((a, b) => a.idProducto - b.idProducto)
+  }, [productos, stock])
 
   if (!carpa || !NOMBRES[carpa]) {
     return (
@@ -84,13 +91,19 @@ export default function InventarioCarpa() {
 
   const total = productos.reduce((acc, p) => acc + (ventas[p.idProducto] || 0) * p.precio, 0)
 
-  const handleDeshacer = async () => {
-    const deshecho = await deshacerUltimoCambio(carpa)
-    if (!deshecho) {
-      toast("No hay nada para deshacer", { icon: "ℹ️" })
-      return
+  const iniciarEdicionStock = (idProducto) => {
+    setEditandoStock(idProducto)
+    setValorStock(stock[idProducto] ?? "")
+  }
+
+  const guardarStock = async (idProducto) => {
+    const cantidad = valorStock === "" ? null : Number(valorStock)
+    setEditandoStock(null)
+    try {
+      await establecerStock(carpa, idProducto, cantidad)
+    } catch {
+      toast.error("No se pudo guardar el stock")
     }
-    toast.success(`Deshecho: ${deshecho.nombreProducto}`)
   }
 
   return (
@@ -104,8 +117,6 @@ export default function InventarioCarpa() {
       <div className="w-full py-8 px-4 text-center" style={{ borderBottom: "1px solid rgba(212,168,67,0.2)" }}>
         <div className="flex items-center justify-center gap-3 mb-3">
           <Link to="/inventario" style={{ color: "rgba(212,168,67,0.4)", fontSize: "11px", letterSpacing: "2px" }}>← INVENTARIO</Link>
-          <span style={{ color: "rgba(212,168,67,0.25)" }}>·</span>
-          <button onClick={cerrarSesion} style={{ color: "rgba(212,168,67,0.4)", fontSize: "11px", letterSpacing: "2px" }}>CERRAR SESIÓN</button>
         </div>
         <h1 className="font-black uppercase" style={{ color: "#d4a843", fontFamily: "'Arial Black', sans-serif", fontSize: "clamp(24px, 5vw, 36px)", letterSpacing: "4px" }}>
           {NOMBRES[carpa]}
@@ -116,39 +127,9 @@ export default function InventarioCarpa() {
             ${total.toLocaleString("es-CO")}
           </span>
         </div>
-        <div>
-          <button onClick={handleDeshacer} className="mt-3 text-xs font-bold uppercase" style={{ color: "rgba(212,168,67,0.5)", letterSpacing: "1px" }}>
-            ↩ Deshacer último cambio
-          </button>
-        </div>
       </div>
 
       <div className="max-w-3xl mx-auto px-4 py-8 pb-20">
-        {/* Historial de hoy */}
-        <div className="mb-5">
-          <button onClick={() => setVerHistorial((v) => !v)} className="text-xs font-bold uppercase" style={{ color: "rgba(212,168,67,0.5)", letterSpacing: "1px" }}>
-            {verHistorial ? "▲" : "▼"} Historial de hoy ({historial.length})
-          </button>
-          {verHistorial && (
-            <div className="mt-3 flex flex-col gap-1 rounded-xl p-3" style={{ background: "rgba(26,2,5,0.9)", border: "1px solid rgba(212,168,67,0.15)", maxHeight: "220px", overflowY: "auto" }}>
-              {historial.length === 0 ? (
-                <p style={{ color: "rgba(212,168,67,0.4)", fontSize: "12px" }}>Todavía no hay movimientos hoy.</p>
-              ) : (
-                historial.map((h) => (
-                  <div key={h.id} className="flex items-center justify-between text-xs py-1" style={{ borderBottom: "1px solid rgba(212,168,67,0.08)" }}>
-                    <span style={{ color: "rgba(245,230,200,0.75)" }}>
-                      {h.fecha?.toDate ? h.fecha.toDate().toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" }) : "ahora"} · {h.nombreProducto}
-                    </span>
-                    <span style={{ color: h.delta > 0 ? "#8fd694" : "#ff9b9b", fontWeight: "700" }}>
-                      {h.delta > 0 ? `+${h.delta}` : h.delta}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-        </div>
-
         {/* Buscador */}
         <input
           type="text"
@@ -178,16 +159,65 @@ export default function InventarioCarpa() {
           ))}
         </div>
 
+        {/* Agregar productos del catálogo a esta carpa */}
+        {!cargandoProductos && (
+          <div className="mb-6 rounded-xl p-3" style={{ background: "rgba(26,2,5,0.9)", border: "1px solid rgba(212,168,67,0.2)" }}>
+            <button onClick={() => setVerAgregar((v) => !v)} className="text-xs font-bold uppercase w-full text-left" style={{ color: "#d4a843", letterSpacing: "1px" }}>
+              {verAgregar ? "▲" : "▼"} Agregar productos a esta carpa ({productosSinAgregar.length})
+            </button>
+            {verAgregar && (
+              <div className="mt-3 flex flex-col gap-2" style={{ maxHeight: "260px", overflowY: "auto" }}>
+                {productosSinAgregar.length === 0 ? (
+                  <p style={{ color: "rgba(212,168,67,0.4)", fontSize: "12px" }}>Ya agregaste todo el catálogo a esta carpa.</p>
+                ) : (
+                  productosSinAgregar.map((p) => (
+                    <div key={p.idProducto} className="flex items-center justify-between gap-3 py-1" style={{ borderBottom: "1px solid rgba(212,168,67,0.08)" }}>
+                      <span style={{ color: "rgba(245,230,200,0.8)", fontSize: "12px" }}>{p.nombreProducto}</span>
+                      {editandoStock === p.idProducto ? (
+                        <input
+                          type="number"
+                          autoFocus
+                          value={valorStock}
+                          onChange={(e) => setValorStock(e.target.value)}
+                          onBlur={() => guardarStock(p.idProducto)}
+                          onKeyDown={(e) => e.key === "Enter" && guardarStock(p.idProducto)}
+                          placeholder="Stock"
+                          className="w-20 rounded px-2 py-1 text-xs outline-none flex-shrink-0"
+                          style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(212,168,67,0.4)", color: "#f5e6c8" }}
+                        />
+                      ) : (
+                        <button
+                          onClick={() => iniciarEdicionStock(p.idProducto)}
+                          className="text-xs font-bold px-3 py-1 rounded-lg flex-shrink-0"
+                          style={{ border: "1px solid rgba(212,168,67,0.4)", color: "#d4a843" }}
+                        >
+                          + Agregar
+                        </button>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Lista de productos */}
         {cargandoProductos ? (
           <p className="text-center py-16" style={{ color: "rgba(212,168,67,0.4)" }}>Cargando productos...</p>
         ) : productosFiltrados.length === 0 ? (
-          <p className="text-center py-16" style={{ color: "rgba(212,168,67,0.4)" }}>No se encontraron productos.</p>
+          <p className="text-center py-16" style={{ color: "rgba(212,168,67,0.4)" }}>
+            {productos.length === 0 ? "No se encontraron productos." : "Todavía no has agregado productos a esta carpa."}
+          </p>
         ) : (
           <div className="flex flex-col gap-3">
             {productosFiltrados.map((p) => {
               const cantidad = ventas[p.idProducto] || 0
               const subtotal = cantidad * p.precio
+              const stockProducto = stock[p.idProducto]
+              const tieneStock = stockProducto != null
+              const restante = tieneStock ? stockProducto - cantidad : null
+              const agotado = tieneStock && restante <= 0
               return (
                 <div
                   key={p.idProducto}
@@ -204,7 +234,26 @@ export default function InventarioCarpa() {
                   <div className="min-w-0 flex-1">
                     <p className="font-bold truncate" style={{ color: "white", fontSize: "13px" }}>{p.nombreProducto}</p>
                     <p style={{ color: "#d4a843", fontSize: "14px", fontWeight: "800" }}>${p.precio.toLocaleString("es-CO")}</p>
-                    {p.cantidadDisponible != null && <p style={{ color: "rgba(212,168,67,0.4)", fontSize: "10px" }}>En existencia: {p.cantidadDisponible}</p>}
+                    {editandoStock === p.idProducto ? (
+                      <input
+                        type="number"
+                        autoFocus
+                        value={valorStock}
+                        onChange={(e) => setValorStock(e.target.value)}
+                        onBlur={() => guardarStock(p.idProducto)}
+                        onKeyDown={(e) => e.key === "Enter" && guardarStock(p.idProducto)}
+                        placeholder="Stock en esta carpa"
+                        className="mt-1 w-28 rounded px-2 py-1 text-xs outline-none"
+                        style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(212,168,67,0.4)", color: "#f5e6c8" }}
+                      />
+                    ) : (
+                      <button
+                        onClick={() => iniciarEdicionStock(p.idProducto)}
+                        style={{ color: agotado ? "#ff9b9b" : "rgba(212,168,67,0.4)", fontSize: "10px", fontWeight: agotado ? "700" : "400" }}
+                      >
+                        {tieneStock ? (agotado ? "Agotado · editar" : `Quedan: ${restante} · editar`) : "Definir stock en esta carpa"}
+                      </button>
+                    )}
                     {cantidad > 0 && <p style={{ color: "rgba(212,168,67,0.5)", fontSize: "11px" }}>Subtotal: ${subtotal.toLocaleString("es-CO")}</p>}
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
@@ -219,7 +268,8 @@ export default function InventarioCarpa() {
                     <span className="w-6 text-center font-black" style={{ color: "#f5e6c8", fontSize: "15px" }}>{cantidad}</span>
                     <button
                       onClick={() => cambiarCantidad(carpa, p.idProducto, 1, p.nombreProducto)}
-                      className="w-9 h-9 rounded-lg font-black text-lg"
+                      disabled={agotado}
+                      className="w-9 h-9 rounded-lg font-black text-lg disabled:opacity-20"
                       style={{ background: "#d4a843", color: "#1a0205" }}
                     >
                       +

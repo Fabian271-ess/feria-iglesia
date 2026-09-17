@@ -5,18 +5,17 @@ import { useProductos } from "../context/ProductosContext"
 import { useCategorias } from "../context/CategoriasContext"
 import { useAuthUser } from "../lib/useAuthUser"
 import { EstadoAcceso } from "../components/EstadoAcceso"
-import { NOMBRES_CARPA } from "../lib/carpas"
 import { getCategoriasSinPadre, getSubcategorias } from "../lib/categoriaHelpers"
 import { crearProducto, actualizarProducto, eliminarProducto } from "../lib/productosFirestore"
-import { crearCategoria, eliminarCategoria } from "../lib/categoriasFirestore"
+import { crearCategoria, actualizarCategoria, eliminarCategoria } from "../lib/categoriasFirestore"
 import { subirImagenCloudinary } from "../lib/cloudinary"
 import SelectorEmoji from "../components/SelectorEmoji"
 import SubirImagen from "../components/SubirImagen"
 
 const bgGradient = "linear-gradient(135deg, #3d0008 0%, #1a0205 50%, #2a0a0a 100%)"
 
-const formVacio = { nombreProducto: "", precio: "", idCategoria: "", imagenUrl: "", descripcion: "", cantidadDisponible: "", carpaId: "" }
-const categoriaNuevaVacia = { nombre: "", idPadre: "", icono: "" }
+const formVacio = { nombreProducto: "", precio: "", idCategoria: "", imagenUrl: "", descripcion: "" }
+const categoriaNuevaVacia = { nombre: "", idPadre: "", icono: "", idCategoria: null }
 
 export default function InventarioProductos() {
   const { user, rol, cargando } = useAuthUser()
@@ -30,9 +29,9 @@ export default function InventarioProductos() {
   const [mostrarNuevaCategoria, setMostrarNuevaCategoria] = useState(false)
   const [nuevaCategoria, setNuevaCategoria] = useState(categoriaNuevaVacia)
   const [crearComoSeccion, setCrearComoSeccion] = useState(false)
+  const [editandoCategoriaId, setEditandoCategoriaId] = useState(null)
 
   const rolEsGerente = rol?.startsWith("gerente_")
-  const carpaGerente = rolEsGerente ? rol.replace("gerente_", "") : null
   const puedeEntrar = rol === "admin" || rolEsGerente
 
   useEffect(() => {
@@ -60,7 +59,6 @@ export default function InventarioProductos() {
 
   const categoriasHoja = categorias.filter((c) => c.idPadre) // solo las de hasta abajo, donde van los productos
   const seccionesPadre = getCategoriasSinPadre(categorias)
-  const productosVisibles = rolEsGerente ? productos.filter((p) => p.carpaId === carpaGerente) : productos
 
   const limpiarForm = () => { setForm(formVacio); setImagenArchivo(null); setEditandoId(null) }
 
@@ -84,8 +82,6 @@ export default function InventarioProductos() {
         categoriaNombre: cat?.nombre || "",
         imagenUrl,
         descripcion: form.descripcion,
-        cantidadDisponible: form.cantidadDisponible === "" ? null : Number(form.cantidadDisponible),
-        carpaId: rolEsGerente ? carpaGerente : (form.carpaId || null),
         activo: true,
       }
       if (editandoId) {
@@ -111,8 +107,6 @@ export default function InventarioProductos() {
       idCategoria: p.idCategoria || "",
       imagenUrl: p.imagenUrl || "",
       descripcion: p.descripcion || "",
-      cantidadDisponible: p.cantidadDisponible ?? "",
-      carpaId: p.carpaId || "",
     })
     setImagenArchivo(null)
     setEditandoId(p._docId)
@@ -129,6 +123,24 @@ export default function InventarioProductos() {
     }
   }
 
+  const limpiarFormCategoria = () => {
+    setNuevaCategoria(categoriaNuevaVacia)
+    setCrearComoSeccion(false)
+    setEditandoCategoriaId(null)
+  }
+
+  const handleEditarCategoria = (cat) => {
+    setNuevaCategoria({
+      nombre: cat.nombre || "",
+      idPadre: cat.idPadre ? String(cat.idPadre) : "",
+      icono: cat.icono || "",
+      idCategoria: cat.idCategoria,
+    })
+    setCrearComoSeccion(!cat.idPadre)
+    setEditandoCategoriaId(cat._docId)
+    setMostrarNuevaCategoria(true)
+  }
+
   const handleCrearCategoria = async (e) => {
     e.preventDefault()
     if (!nuevaCategoria.nombre || (!crearComoSeccion && !nuevaCategoria.idPadre)) {
@@ -136,16 +148,20 @@ export default function InventarioProductos() {
       return
     }
     try {
-      const idCategoria = Math.max(0, ...categorias.map((c) => c.idCategoria || 0)) + 1
       const idPadre = crearComoSeccion ? null : Number(nuevaCategoria.idPadre)
-      await crearCategoria({ nombre: nuevaCategoria.nombre, idPadre, idCategoria, icono: nuevaCategoria.icono || null })
-      toast.success(crearComoSeccion ? "Sección creada" : "Categoría creada")
-      if (!crearComoSeccion) setForm((f) => ({ ...f, idCategoria: String(idCategoria) }))
-      setNuevaCategoria(categoriaNuevaVacia)
-      setCrearComoSeccion(false)
+      if (editandoCategoriaId) {
+        await actualizarCategoria(editandoCategoriaId, { nombre: nuevaCategoria.nombre, idPadre, icono: nuevaCategoria.icono || null })
+        toast.success(crearComoSeccion ? "Sección actualizada" : "Categoría actualizada")
+      } else {
+        const idCategoria = Math.max(0, ...categorias.map((c) => c.idCategoria || 0)) + 1
+        await crearCategoria({ nombre: nuevaCategoria.nombre, idPadre, idCategoria, icono: nuevaCategoria.icono || null })
+        toast.success(crearComoSeccion ? "Sección creada" : "Categoría creada")
+        if (!crearComoSeccion) setForm((f) => ({ ...f, idCategoria: String(idCategoria) }))
+      }
+      limpiarFormCategoria()
       setMostrarNuevaCategoria(false)
     } catch {
-      toast.error(crearComoSeccion ? "No se pudo crear la sección" : "No se pudo crear la categoría")
+      toast.error(editandoCategoriaId ? "No se pudo guardar los cambios" : (crearComoSeccion ? "No se pudo crear la sección" : "No se pudo crear la categoría"))
     }
   }
 
@@ -181,7 +197,7 @@ export default function InventarioProductos() {
           <Link to="/inventario" style={{ color: "rgba(212,168,67,0.4)", fontSize: "11px", letterSpacing: "2px" }}>← INVENTARIO</Link>
         </div>
         <h1 className="font-black uppercase" style={{ color: "#d4a843", fontFamily: "'Arial Black', sans-serif", fontSize: "clamp(24px, 5vw, 36px)", letterSpacing: "4px" }}>
-          {rolEsGerente ? `Productos — ${NOMBRES_CARPA[carpaGerente]}` : "Productos"}
+          Productos
         </h1>
       </div>
 
@@ -223,9 +239,16 @@ export default function InventarioProductos() {
                   {seccionesPadre.map((s) => <option key={s.idCategoria} value={s.idCategoria}>{s.nombre}</option>)}
                 </select>
               )}
-              <button type="submit" className="rounded-lg py-2 font-black uppercase text-xs" style={{ background: "#d4a843", color: "#1a0205", letterSpacing: "1px" }}>
-                {crearComoSeccion ? "Crear sección" : "Crear categoría"}
-              </button>
+              <div className="flex gap-2">
+                <button type="submit" className="flex-1 rounded-lg py-2 font-black uppercase text-xs" style={{ background: "#d4a843", color: "#1a0205", letterSpacing: "1px" }}>
+                  {editandoCategoriaId ? "Guardar cambios" : (crearComoSeccion ? "Crear sección" : "Crear categoría")}
+                </button>
+                {editandoCategoriaId && (
+                  <button type="button" onClick={limpiarFormCategoria} className="rounded-lg py-2 px-4 font-bold uppercase text-xs" style={{ border: "1px solid rgba(212,168,67,0.4)", color: "#d4a843" }}>
+                    Cancelar
+                  </button>
+                )}
+              </div>
 
               <div className="flex flex-col gap-2 mt-2">
                 {seccionesPadre.map((sec) => (
@@ -234,22 +257,32 @@ export default function InventarioProductos() {
                       <span className="text-xs font-bold uppercase" style={{ color: "#d4a843", letterSpacing: "1px" }}>
                         {sec.icono ? `${sec.icono} ` : ""}{sec.nombre}
                       </span>
-                      {!rolEsGerente && (
-                        <button type="button" onClick={() => handleEliminarCategoria(sec)} className="text-xs font-bold px-2 py-1 rounded-lg" style={{ border: "1px solid rgba(255,100,100,0.4)", color: "#ff8080" }}>
-                          Eliminar
+                      <div className="flex gap-2 flex-shrink-0">
+                        <button type="button" onClick={() => handleEditarCategoria(sec)} className="text-xs font-bold px-2 py-1 rounded-lg" style={{ border: "1px solid rgba(212,168,67,0.4)", color: "#d4a843" }}>
+                          Editar
                         </button>
-                      )}
+                        {!rolEsGerente && (
+                          <button type="button" onClick={() => handleEliminarCategoria(sec)} className="text-xs font-bold px-2 py-1 rounded-lg" style={{ border: "1px solid rgba(255,100,100,0.4)", color: "#ff8080" }}>
+                            Eliminar
+                          </button>
+                        )}
+                      </div>
                     </div>
                     {getSubcategorias(categorias, sec.idCategoria).map((cat) => (
                       <div key={cat.idCategoria} className="flex items-center justify-between gap-2 pl-4">
                         <span className="text-xs" style={{ color: "rgba(212,168,67,0.6)" }}>
                           {cat.icono ? `${cat.icono} ` : ""}{cat.nombre}
                         </span>
+                        <div className="flex gap-2 flex-shrink-0">
+                        <button type="button" onClick={() => handleEditarCategoria(cat)} className="text-xs font-bold px-2 py-1 rounded-lg" style={{ border: "1px solid rgba(212,168,67,0.4)", color: "#d4a843" }}>
+                          Editar
+                        </button>
                         {!rolEsGerente && (
                           <button type="button" onClick={() => handleEliminarCategoria(cat)} className="text-xs font-bold px-2 py-1 rounded-lg" style={{ border: "1px solid rgba(255,100,100,0.4)", color: "#ff8080" }}>
                             Eliminar
                           </button>
                         )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -266,19 +299,11 @@ export default function InventarioProductos() {
           </h2>
           <input placeholder="Nombre del producto" value={form.nombreProducto} onChange={(e) => setForm({ ...form, nombreProducto: e.target.value })} className="rounded-lg px-4 py-3 outline-none" style={inputStyle} />
           <input type="number" placeholder="Precio" value={form.precio} onChange={(e) => setForm({ ...form, precio: e.target.value })} className="rounded-lg px-4 py-3 outline-none" style={inputStyle} />
-          <input type="number" placeholder="Cantidad disponible" value={form.cantidadDisponible} onChange={(e) => setForm({ ...form, cantidadDisponible: e.target.value })} className="rounded-lg px-4 py-3 outline-none" style={inputStyle} />
           <select value={form.idCategoria} onChange={(e) => setForm({ ...form, idCategoria: e.target.value })} className="rounded-lg px-4 py-3 outline-none" style={inputStyle}>
             <option value="">Selecciona categoría</option>
             {categoriasHoja.map((c) => <option key={c.idCategoria} value={c.idCategoria}>{c.nombre}</option>)}
           </select>
 
-          {!rolEsGerente && (
-            <select value={form.carpaId} onChange={(e) => setForm({ ...form, carpaId: e.target.value })} className="rounded-lg px-4 py-3 outline-none" style={inputStyle}>
-              <option value="">Todas las carpas</option>
-              <option value="carpa1">Solo Carpa 1</option>
-              <option value="carpa2">Solo Carpa 2</option>
-            </select>
-          )}
           <SubirImagen
             preview={previewImagen}
             onArchivo={(file) => { setImagenArchivo(file); setForm((f) => ({ ...f, imagenUrl: "" })) }}
@@ -303,7 +328,7 @@ export default function InventarioProductos() {
           <p className="text-center py-10" style={{ color: "rgba(212,168,67,0.4)" }}>Cargando...</p>
         ) : (
           <div className="flex flex-col gap-2">
-            {productosVisibles.map((p) => (
+            {productos.map((p) => (
               <div key={p._docId} className="flex items-center gap-3 rounded-xl p-3" style={{ background: "rgba(26,2,5,0.9)", border: "1px solid rgba(212,168,67,0.15)" }}>
                 <div className="flex-shrink-0 rounded-lg overflow-hidden" style={{ width: "44px", height: "44px", background: "rgba(139,0,0,0.15)" }}>
                   {p.imagenUrl && <img src={p.imagenUrl} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = "none" }} />}
@@ -312,9 +337,7 @@ export default function InventarioProductos() {
                   <p className="font-bold truncate" style={{ color: "white", fontSize: "13px" }}>{p.nombreProducto}</p>
                   <p style={{ color: "rgba(212,168,67,0.5)", fontSize: "11px" }}>
                     {p.categoriaNombre} · ${Number(p.precio).toLocaleString("es-CO")}
-                    {!rolEsGerente && p.carpaId && ` · ${NOMBRES_CARPA[p.carpaId]}`}
                   </p>
-                  {p.cantidadDisponible != null && <p style={{ color: "rgba(212,168,67,0.4)", fontSize: "10px" }}>En existencia: {p.cantidadDisponible}</p>}
                 </div>
                 <button onClick={() => handleEditar(p)} className="text-xs font-bold px-3 py-2 rounded-lg" style={{ border: "1px solid rgba(212,168,67,0.4)", color: "#d4a843" }}>Editar</button>
                 <button onClick={() => handleEliminar(p._docId, p.nombreProducto)} className="text-xs font-bold px-3 py-2 rounded-lg" style={{ border: "1px solid rgba(255,100,100,0.4)", color: "#ff8080" }}>Eliminar</button>

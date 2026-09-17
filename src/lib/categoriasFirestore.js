@@ -25,6 +25,10 @@ export async function crearCategoria(data) {
   await addDoc(collection(db, COL), data)
 }
 
+export async function actualizarCategoria(docId, data) {
+  await setDoc(doc(db, COL, docId), data, { merge: true })
+}
+
 export async function eliminarCategoria(docId) {
   await deleteDoc(doc(db, COL, docId))
 }

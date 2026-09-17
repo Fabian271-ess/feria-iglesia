@@ -3,7 +3,6 @@ import { Link } from "react-router-dom"
 import toast from "react-hot-toast"
 import { useProductos } from "../context/ProductosContext"
 import { useAuthUser } from "../lib/useAuthUser"
-import { useCerrarSesion } from "../lib/useCerrarSesion"
 import { EstadoAcceso } from "../components/EstadoAcceso"
 import { NOMBRES_CARPA } from "../lib/carpas"
 import { suscribirCarpa } from "../lib/inventario"
@@ -14,7 +13,6 @@ const bgGradient = "linear-gradient(135deg, #3d0008 0%, #1a0205 50%, #2a0a0a 100
 export default function InventarioResumen() {
   const online = useOnlineStatus()
   const { user, rol, cargando } = useAuthUser()
-  const cerrarSesion = useCerrarSesion()
   const { productos } = useProductos()
   const [ventas1, setVentas1] = useState({})
   const [ventas2, setVentas2] = useState({})
@@ -96,8 +94,6 @@ export default function InventarioResumen() {
       <div className="w-full py-8 px-4 text-center" style={{ borderBottom: "1px solid rgba(212,168,67,0.2)" }}>
         <div className="flex items-center justify-center gap-3 mb-3">
           <Link to="/inventario" style={{ color: "rgba(212,168,67,0.4)", fontSize: "11px", letterSpacing: "2px" }}>← INVENTARIO</Link>
-          <span style={{ color: "rgba(212,168,67,0.25)" }}>·</span>
-          <button onClick={cerrarSesion} style={{ color: "rgba(212,168,67,0.4)", fontSize: "11px", letterSpacing: "2px" }}>CERRAR SESIÓN</button>
         </div>
         <h1 className="font-black uppercase mt-1" style={{ color: "#d4a843", fontFamily: "'Arial Black', sans-serif", fontSize: "clamp(24px, 5vw, 36px)", letterSpacing: "4px" }}>
           {rolEsGerente ? `Resumen — ${NOMBRES_CARPA[carpaGerente]}` : "Resumen general"}

@@ -1,6 +1,5 @@
 import { Link } from "react-router-dom"
 import { useAuthUser } from "../lib/useAuthUser"
-import { useCerrarSesion } from "../lib/useCerrarSesion"
 import { EstadoAcceso } from "../components/EstadoAcceso"
 
 const bgGradient = "linear-gradient(135deg, #3d0008 0%, #1a0205 50%, #2a0a0a 100%)"
@@ -14,7 +13,6 @@ const TODAS_LAS_OPCIONES = [
 
 export default function Inventario() {
   const { user, rol, cargando } = useAuthUser()
-  const cerrarSesion = useCerrarSesion()
   const puedeEntrar = !!rol
 
   if (cargando || !user || !puedeEntrar) {
@@ -40,9 +38,6 @@ export default function Inventario() {
           Inventario
         </h1>
         <div className="w-16 h-px mx-auto mt-4" style={{ background: "linear-gradient(90deg, transparent, #d4a843, transparent)" }} />
-        <button onClick={cerrarSesion} className="mt-4 text-xs font-bold uppercase" style={{ color: "rgba(212,168,67,0.5)", letterSpacing: "2px" }}>
-          Cerrar sesión
-        </button>
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-16 flex flex-col gap-5">

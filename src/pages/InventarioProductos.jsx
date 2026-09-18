@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Link } from "react-router-dom"
 import toast from "react-hot-toast"
 import { useProductos } from "../context/ProductosContext"
@@ -15,6 +15,7 @@ import SubirImagen from "../components/SubirImagen"
 const bgGradient = "linear-gradient(135deg, #3d0008 0%, #1a0205 50%, #2a0a0a 100%)"
 
 const formVacio = { nombreProducto: "", precio: "", idCategoria: "", imagenUrl: "", descripcion: "" }
+const normalize = (str) => str?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
 const categoriaNuevaVacia = { nombre: "", idPadre: "", icono: "", idCategoria: null }
 
 export default function InventarioProductos() {
@@ -22,6 +23,7 @@ export default function InventarioProductos() {
   const { productos, loading: cargandoProductos } = useProductos()
   const { categorias } = useCategorias()
   const [form, setForm] = useState(formVacio)
+  const [busquedaLista, setBusquedaLista] = useState("")
   const [imagenArchivo, setImagenArchivo] = useState(null) // File elegido, pendiente de subir
   const [previewImagen, setPreviewImagen] = useState("")
   const [editandoId, setEditandoId] = useState(null)
@@ -235,8 +237,12 @@ export default function InventarioProductos() {
                   className="rounded-lg px-4 py-3 outline-none"
                   style={inputStyle}
                 >
-                  <option value="">Selecciona sección</option>
-                  {seccionesPadre.map((s) => <option key={s.idCategoria} value={s.idCategoria}>{s.nombre}</option>)}
+                  <option value="" style={{ background: "#1a0205", color: "#f5e6c8" }}>Selecciona sección</option>
+                  {seccionesPadre.map((s) => (
+                    <option key={s.idCategoria} value={s.idCategoria} style={{ background: "#1a0205", color: "#f5e6c8" }}>
+                      {s.nombre}
+                    </option>
+                  ))}
                 </select>
               )}
               <div className="flex gap-2">
@@ -300,8 +306,12 @@ export default function InventarioProductos() {
           <input placeholder="Nombre del producto" value={form.nombreProducto} onChange={(e) => setForm({ ...form, nombreProducto: e.target.value })} className="rounded-lg px-4 py-3 outline-none" style={inputStyle} />
           <input type="number" placeholder="Precio" value={form.precio} onChange={(e) => setForm({ ...form, precio: e.target.value })} className="rounded-lg px-4 py-3 outline-none" style={inputStyle} />
           <select value={form.idCategoria} onChange={(e) => setForm({ ...form, idCategoria: e.target.value })} className="rounded-lg px-4 py-3 outline-none" style={inputStyle}>
-            <option value="">Selecciona categoría</option>
-            {categoriasHoja.map((c) => <option key={c.idCategoria} value={c.idCategoria}>{c.nombre}</option>)}
+            <option value="" style={{ background: "#1a0205", color: "#f5e6c8" }}>Selecciona categoría</option>
+            {categoriasHoja.map((c) => (
+              <option key={c.idCategoria} value={c.idCategoria} style={{ background: "#1a0205", color: "#f5e6c8" }}>
+                {c.nombre}
+              </option>
+            ))}
           </select>
 
           <SubirImagen
@@ -327,8 +337,19 @@ export default function InventarioProductos() {
         {cargandoProductos ? (
           <p className="text-center py-10" style={{ color: "rgba(212,168,67,0.4)" }}>Cargando...</p>
         ) : (
-          <div className="flex flex-col gap-2">
-            {productos.map((p) => (
+          <>
+            <input
+              type="text"
+              value={busquedaLista}
+              onChange={(e) => setBusquedaLista(e.target.value)}
+              placeholder="🔍 Buscar en tus productos..."
+              className="w-full rounded-xl px-4 py-3 mb-3 outline-none"
+              style={{ background: "rgba(26,2,5,0.9)", border: "1px solid rgba(212,168,67,0.25)", color: "#f5e6c8" }}
+            />
+            <div className="flex flex-col gap-2">
+              {productos
+                .filter((p) => !busquedaLista || normalize(p.nombreProducto).includes(normalize(busquedaLista)))
+                .map((p) => (
               <div key={p._docId} className="flex items-center gap-3 rounded-xl p-3" style={{ background: "rgba(26,2,5,0.9)", border: "1px solid rgba(212,168,67,0.15)" }}>
                 <div className="flex-shrink-0 rounded-lg overflow-hidden" style={{ width: "44px", height: "44px", background: "rgba(139,0,0,0.15)" }}>
                   {p.imagenUrl && <img src={p.imagenUrl} alt="" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = "none" }} />}
@@ -343,7 +364,8 @@ export default function InventarioProductos() {
                 <button onClick={() => handleEliminar(p._docId, p.nombreProducto)} className="text-xs font-bold px-3 py-2 rounded-lg" style={{ border: "1px solid rgba(255,100,100,0.4)", color: "#ff8080" }}>Eliminar</button>
               </div>
             ))}
-          </div>
+            </div>
+          </>
         )}
       </div>
     </div>

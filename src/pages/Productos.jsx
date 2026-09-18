@@ -1,3 +1,4 @@
+import { useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 import { useProductos } from "../context/ProductosContext"
 import { useCategorias } from "../context/CategoriasContext"
@@ -5,14 +6,21 @@ import { getCategoriaById, getEmojiCategoria } from "../lib/categoriaHelpers"
 
 const bgGradient = "linear-gradient(135deg, #3d0008 0%, #1a0205 50%, #2a0a0a 100%)"
 
+const normalize = (str) => str?.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+
 export default function Productos() {
   const navigate = useNavigate()
   const { productos, loading } = useProductos()
   const { categorias } = useCategorias()
+  const [busqueda, setBusqueda] = useState("")
 
-  const productosOrdenados = [...productos]
-    .filter((p) => p.activo !== false)
-    .sort((a, b) => a.precio - b.precio)
+  const productosOrdenados = useMemo(() => {
+    const q = normalize(busqueda)
+    return [...productos]
+      .filter((p) => p.activo !== false)
+      .filter((p) => !q || normalize(p.nombreProducto).includes(q) || normalize(p.categoriaNombre).includes(q))
+      .sort((a, b) => a.precio - b.precio)
+  }, [productos, busqueda])
 
   return (
     <div style={{ background: bgGradient, minHeight: "100vh" }}>
@@ -22,8 +30,20 @@ export default function Productos() {
           Productos
         </h1>
         <div className="w-16 h-px mx-auto mt-4" style={{ background: "linear-gradient(90deg, transparent, #d4a843, transparent)" }} />
+
+        <div className="max-w-md mx-auto mt-6">
+          <input
+            type="text"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder="🔍 Buscar producto..."
+            className="w-full rounded-xl px-4 py-3 outline-none"
+            style={{ background: "rgba(26,2,5,0.9)", border: "1px solid rgba(212,168,67,0.35)", color: "#f5e6c8", fontSize: "14px" }}
+          />
+        </div>
+
         {!loading && (
-          <p style={{ color: "rgba(212,168,67,0.4)", fontSize: "13px", marginTop: "10px" }}>
+          <p style={{ color: "rgba(212,168,67,0.4)", fontSize: "13px", marginTop: "12px" }}>
             {productosOrdenados.length} producto{productosOrdenados.length !== 1 ? "s" : ""} · de menor a mayor precio
           </p>
         )}
@@ -38,7 +58,9 @@ export default function Productos() {
         ) : productosOrdenados.length === 0 ? (
           <div className="text-center py-20">
             <p style={{ fontSize: "48px" }}>🛍️</p>
-            <p className="mt-4" style={{ color: "rgba(212,168,67,0.4)", fontSize: "16px" }}>Todavía no hay productos.</p>
+            <p className="mt-4" style={{ color: "rgba(212,168,67,0.4)", fontSize: "16px" }}>
+              {busqueda ? "No se encontraron productos con ese nombre." : "Todavía no hay productos."}
+            </p>
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">

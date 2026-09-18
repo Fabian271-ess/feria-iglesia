@@ -13,22 +13,10 @@ const SECCIONES_MENU = [
 
 export default function Navbar() {
   const [menuAbierto, setMenuAbierto]         = useState(false)
-  const [busqueda, setBusqueda]               = useState("")
-  const [mostrarBusqueda, setMostrarBusqueda] = useState(false)
   const [loginAbierto, setLoginAbierto]       = useState(false)
   const navigate = useNavigate()
   const { user } = useAuthUser()
   const cerrarSesion = useCerrarSesion()
-
-  const handleBusqueda = (e) => {
-    e.preventDefault()
-    if (busqueda.trim()) {
-      navigate(`/busqueda?q=${busqueda}`)
-      setBusqueda("")
-      setMostrarBusqueda(false)
-      setMenuAbierto(false)
-    }
-  }
 
   const handleLoginExitoso = () => {
     setLoginAbierto(false)
@@ -71,30 +59,6 @@ export default function Navbar() {
 
         {/* Acciones desktop */}
         <div className="flex items-center gap-3">
-          {mostrarBusqueda && (
-            <form onSubmit={handleBusqueda} className="hidden md:flex">
-              <input
-                autoFocus
-                type="text"
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                placeholder="Buscar productos..."
-                className="px-4 py-2 rounded-lg text-sm outline-none"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(212,168,67,0.4)", color: "#f5e6c8", width: "200px" }}
-                onBlur={() => { if (!busqueda) setMostrarBusqueda(false) }}
-              />
-            </form>
-          )}
-
-          <button
-            onClick={() => setMostrarBusqueda(!mostrarBusqueda)}
-            className="hidden md:flex w-9 h-9 rounded-lg items-center justify-center transition-all duration-200"
-            style={{ border: "1px solid rgba(212,168,67,0.3)" }}
-            onMouseEnter={(e) => (e.currentTarget.style.borderColor = "#d4a843")}
-            onMouseLeave={(e) => (e.currentTarget.style.borderColor = "rgba(212,168,67,0.3)")}
-          >
-            <Icono nombre="search" style={{ color: "#d4a843" }} />
-          </button>
 
           {user ? (
             <>
@@ -144,16 +108,6 @@ export default function Navbar() {
       {/* Menú mobile */}
       {menuAbierto && (
         <div className="md:hidden flex flex-col px-4 pb-4 gap-3" style={{ borderTop: "1px solid rgba(212,168,67,0.15)" }}>
-          <form onSubmit={handleBusqueda} className="mt-3">
-            <input
-              type="text"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar productos..."
-              className="w-full px-4 py-2 rounded-lg text-sm outline-none"
-              style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(212,168,67,0.3)", color: "#f5e6c8" }}
-            />
-          </form>
           {SECCIONES_MENU.map((sec) => (
             <Link
               key={sec.nombre}

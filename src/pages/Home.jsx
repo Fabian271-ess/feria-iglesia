@@ -2,9 +2,9 @@ import logoFeria from "../assets/logo-feria.png"
 
 export default function Home() {
   return (
-    <div style={{ background: "linear-gradient(135deg, #3d0008 0%, #1a0205 50%, #2a0a0a 100%)", height: "calc(100vh - 68px - 300px)", minHeight: "360px", overflow: "hidden" }}>
+    <div className="h-auto md:h-[calc(100vh-68px-300px)] min-h-[360px] md:overflow-hidden" style={{ background: "linear-gradient(135deg, #3d0008 0%, #1a0205 50%, #2a0a0a 100%)" }}>
       <section
-        className="relative flex flex-col md:flex-row items-center justify-center gap-6 md:gap-14 px-6 md:px-12 h-full overflow-hidden"
+        className="relative flex flex-col md:flex-row items-center justify-center gap-6 md:gap-14 px-6 md:px-12 py-12 md:py-0 h-full overflow-hidden"
       >
         <div
           className="absolute inset-0 pointer-events-none"

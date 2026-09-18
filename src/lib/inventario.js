@@ -85,3 +85,30 @@ export function suscribirHistorialHoy(carpaId, callback, max = 30) {
     callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
   })
 }
+
+// --- Pendientes de pago: alguien se llevó el producto pero todavía no ha pagado ---
+// Viven en inventario/{carpaId}/pendientes, y NO cuentan en "ventas" hasta que se marcan como pagados.
+
+export function suscribirPendientes(carpaId, callback) {
+  const q = query(collection(db, "inventario", carpaId, "pendientes"), orderBy("fecha", "desc"))
+  return onSnapshot(q, (snap) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+  })
+}
+
+export async function crearPendiente(carpaId, { nombreComprador, idProducto, nombreProducto, cantidad, monto }) {
+  await addDoc(collection(db, "inventario", carpaId, "pendientes"), {
+    nombreComprador, idProducto, nombreProducto, cantidad, monto,
+    fecha: serverTimestamp(),
+  })
+}
+
+// Al marcar como pagado, se suma de una vez a "ventas" (como si se acabara de vender) y se borra de pendientes.
+export async function marcarPendienteComoPagado(carpaId, pendiente) {
+  await cambiarCantidad(carpaId, pendiente.idProducto, pendiente.cantidad, pendiente.nombreProducto)
+  await deleteDoc(doc(db, "inventario", carpaId, "pendientes", pendiente.id))
+}
+
+export async function eliminarPendiente(carpaId, pendienteId) {
+  await deleteDoc(doc(db, "inventario", carpaId, "pendientes", pendienteId))
+}

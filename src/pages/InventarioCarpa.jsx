@@ -6,7 +6,7 @@ import { useCategorias } from "../context/CategoriasContext"
 import { useAuthUser } from "../lib/useAuthUser"
 import { EstadoAcceso } from "../components/EstadoAcceso"
 import { NOMBRES_CARPA } from "../lib/carpas"
-import { suscribirCarpa, suscribirStockCarpa, establecerStock, cambiarCantidad } from "../lib/inventario"
+import { suscribirCarpa, suscribirStockCarpa, establecerStock, cambiarCantidad, suscribirPendientes, crearPendiente, marcarPendienteComoPagado, eliminarPendiente } from "../lib/inventario"
 import { useOnlineStatus } from "../lib/useOnlineStatus"
 import { getCategoriaById, getEmojiCategoria } from "../lib/categoriaHelpers"
 
@@ -29,8 +29,18 @@ export default function InventarioCarpa() {
   const [editandoStock, setEditandoStock] = useState(null)
   const [valorStock, setValorStock] = useState("")
   const [verAgregar, setVerAgregar] = useState(false)
+  const [pendientes, setPendientes] = useState([])
+  const [verPendientes, setVerPendientes] = useState(false)
+  const [formPendiente, setFormPendiente] = useState({ nombreComprador: "", idProducto: "", cantidad: 1 })
+  const [guardandoPendiente, setGuardandoPendiente] = useState(false)
 
   const puedeEntrar = rol === "admin" || rol === `gerente_${carpa}`
+
+  useEffect(() => {
+    if (!puedeEntrar || !carpa) return
+    const unsub = suscribirPendientes(carpa, setPendientes)
+    return unsub
+  }, [puedeEntrar, carpa])
 
   useEffect(() => {
     if (!puedeEntrar || !carpa) return
@@ -67,6 +77,12 @@ export default function InventarioCarpa() {
       .filter((p) => stock[p.idProducto] == null)
       .sort((a, b) => a.idProducto - b.idProducto)
   }, [productos, stock])
+
+  const pendientesPorProducto = useMemo(() => {
+    const mapa = {}
+    pendientes.forEach((p) => { mapa[p.idProducto] = (mapa[p.idProducto] || 0) + p.cantidad })
+    return mapa
+  }, [pendientes])
 
   if (!carpa || !NOMBRES[carpa]) {
     return (
@@ -106,6 +122,66 @@ export default function InventarioCarpa() {
     }
   }
 
+  const disponiblePorProducto = (idProducto) => {
+    const producto = productos.find((p) => String(p.idProducto) === String(idProducto))
+    if (!producto) return 0
+    const stockProducto = stock[producto.idProducto]
+    if (stockProducto == null) return 0
+    const vendido = ventas[producto.idProducto] || 0
+    const enPendientes = pendientesPorProducto[producto.idProducto] || 0
+    return stockProducto - vendido - enPendientes
+  }
+
+  const handleAgregarPendiente = async (e) => {
+    e.preventDefault()
+    const producto = productos.find((p) => String(p.idProducto) === String(formPendiente.idProducto))
+    if (!formPendiente.nombreComprador.trim() || !producto || !formPendiente.cantidad) {
+      toast.error("Falta el nombre, el producto o la cantidad")
+      return
+    }
+    const disponible = disponiblePorProducto(producto.idProducto)
+    if (Number(formPendiente.cantidad) > disponible) {
+      toast.error(`Solo quedan ${disponible} disponibles de "${producto.nombreProducto}"`)
+      return
+    }
+    setGuardandoPendiente(true)
+    try {
+      await crearPendiente(carpa, {
+        nombreComprador: formPendiente.nombreComprador.trim(),
+        idProducto: producto.idProducto,
+        nombreProducto: producto.nombreProducto,
+        cantidad: Number(formPendiente.cantidad),
+        monto: Number(formPendiente.cantidad) * producto.precio,
+      })
+      setFormPendiente({ nombreComprador: "", idProducto: "", cantidad: 1 })
+      toast.success("Pendiente agregado")
+    } catch {
+      toast.error("No se pudo guardar")
+    } finally {
+      setGuardandoPendiente(false)
+    }
+  }
+
+  const handlePago = async (p) => {
+    try {
+      await marcarPendienteComoPagado(carpa, p)
+      toast.success(`${p.nombreComprador} ya pagó`)
+    } catch {
+      toast.error("No se pudo marcar como pagado")
+    }
+  }
+
+  const handleCancelarPendiente = async (p) => {
+    if (!confirm(`¿Quitar el pendiente de ${p.nombreComprador}?`)) return
+    try {
+      await eliminarPendiente(carpa, p.id)
+    } catch {
+      toast.error("No se pudo eliminar")
+    }
+  }
+
+  const totalPendiente = pendientes.reduce((acc, p) => acc + p.monto, 0)
+
   return (
     <div style={{ background: bgGradient, minHeight: "100vh" }}>
       {!online && (
@@ -127,9 +203,93 @@ export default function InventarioCarpa() {
             ${total.toLocaleString("es-CO")}
           </span>
         </div>
+        {totalPendiente > 0 && (
+          <p className="mt-2" style={{ color: "#ffb450", fontSize: "11px" }}>
+            + ${totalPendiente.toLocaleString("es-CO")} pendiente de pago
+          </p>
+        )}
       </div>
 
       <div className="max-w-3xl mx-auto px-4 py-8 pb-20">
+        {/* Pendientes de pago */}
+        <div className="mb-6 rounded-xl p-3" style={{ background: "rgba(26,2,5,0.9)", border: "1px solid rgba(255,180,80,0.3)" }}>
+          <button onClick={() => setVerPendientes((v) => !v)} className="text-xs font-bold uppercase w-full text-left flex items-center justify-between" style={{ color: "#ffb450", letterSpacing: "1px" }}>
+            <span>{verPendientes ? "▲" : "▼"} 🕒 Pendientes de pago ({pendientes.length})</span>
+            {totalPendiente > 0 && <span>${totalPendiente.toLocaleString("es-CO")}</span>}
+          </button>
+
+          {verPendientes && (
+            <div className="mt-3 flex flex-col gap-3">
+              {/* Formulario para agregar un pendiente */}
+              <form onSubmit={handleAgregarPendiente} className="flex flex-col gap-2">
+                <input
+                  placeholder="Nombre de quien va a pagar después"
+                  value={formPendiente.nombreComprador}
+                  onChange={(e) => setFormPendiente({ ...formPendiente, nombreComprador: e.target.value })}
+                  className="rounded-lg px-3 py-2 outline-none text-xs"
+                  style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(212,168,67,0.35)", color: "#f5e6c8" }}
+                />
+                <div className="flex gap-2">
+                  <select
+                    value={formPendiente.idProducto}
+                    onChange={(e) => setFormPendiente({ ...formPendiente, idProducto: e.target.value })}
+                    className="flex-1 rounded-lg px-3 py-2 outline-none text-xs"
+                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(212,168,67,0.35)", color: "#f5e6c8" }}
+                  >
+                    <option value="" style={{ background: "#1a0205" }}>Producto...</option>
+                    {productosFiltrados.map((p) => {
+                      const disp = disponiblePorProducto(p.idProducto)
+                      return (
+                        <option key={p.idProducto} value={p.idProducto} disabled={disp <= 0} style={{ background: "#1a0205", color: disp <= 0 ? "rgba(245,230,200,0.3)" : "#f5e6c8" }}>
+                          {p.nombreProducto} (${p.precio.toLocaleString("es-CO")}) · quedan {disp}
+                        </option>
+                      )
+                    })}
+                  </select>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formPendiente.cantidad}
+                    onChange={(e) => setFormPendiente({ ...formPendiente, cantidad: e.target.value })}
+                    className="w-16 rounded-lg px-2 py-2 outline-none text-xs text-center"
+                    style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(212,168,67,0.35)", color: "#f5e6c8" }}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  disabled={guardandoPendiente}
+                  className="rounded-lg py-2 font-black uppercase text-xs disabled:opacity-50"
+                  style={{ background: "#ffb450", color: "#1a0205", letterSpacing: "1px" }}
+                >
+                  Anotar pendiente
+                </button>
+              </form>
+
+              {/* Lista de pendientes */}
+              {pendientes.length === 0 ? (
+                <p style={{ color: "rgba(212,168,67,0.4)", fontSize: "12px" }}>Nadie debe nada por ahora.</p>
+              ) : (
+                <div className="flex flex-col gap-2" style={{ maxHeight: "260px", overflowY: "auto" }}>
+                  {pendientes.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between gap-2 rounded-lg px-3 py-2" style={{ background: "rgba(255,180,80,0.06)", border: "1px solid rgba(255,180,80,0.2)" }}>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold truncate" style={{ color: "#ffb450", fontSize: "12px" }}>{p.nombreComprador}</p>
+                        <p style={{ color: "rgba(245,230,200,0.6)", fontSize: "11px" }}>
+                          {p.cantidad}× {p.nombreProducto} · ${p.monto.toLocaleString("es-CO")}
+                        </p>
+                      </div>
+                      <div className="flex gap-1 flex-shrink-0">
+                        <button onClick={() => handlePago(p)} className="text-xs font-bold px-2 py-1 rounded-lg" style={{ background: "#8fd694", color: "#0a1a0a" }}>Ya pagó</button>
+                        <button onClick={() => handleCancelarPendiente(p)} className="text-xs font-bold px-2 py-1 rounded-lg" style={{ border: "1px solid rgba(255,100,100,0.4)", color: "#ff8080" }}>✕</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {/* Buscador */}
         <input
           type="text"
@@ -216,7 +376,7 @@ export default function InventarioCarpa() {
               const subtotal = cantidad * p.precio
               const stockProducto = stock[p.idProducto]
               const tieneStock = stockProducto != null
-              const restante = tieneStock ? stockProducto - cantidad : null
+              const restante = tieneStock ? stockProducto - cantidad - (pendientesPorProducto[p.idProducto] || 0) : null
               const agotado = tieneStock && restante <= 0
               return (
                 <div

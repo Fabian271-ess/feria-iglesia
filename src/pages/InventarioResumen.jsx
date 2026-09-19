@@ -7,6 +7,7 @@ import { EstadoAcceso } from "../components/EstadoAcceso"
 import { NOMBRES_CARPA } from "../lib/carpas"
 import { suscribirCarpa } from "../lib/inventario"
 import { useOnlineStatus } from "../lib/useOnlineStatus"
+import { generarPDFResumen } from "../lib/pdf"
 
 const bgGradient = "linear-gradient(135deg, #3d0008 0%, #1a0205 50%, #2a0a0a 100%)"
 
@@ -84,6 +85,25 @@ export default function InventarioResumen() {
     window.open(`https://wa.me/?text=${encodeURIComponent(generarResumenTexto())}`, "_blank")
   }
 
+  const descargarPDF = () => {
+    const fecha = new Date().toLocaleDateString("es-CO", { day: "2-digit", month: "long", year: "numeric" })
+    const productosPDF = []
+    productos.forEach((p) => {
+      const cant = rolEsGerente ? (misVentas[p.idProducto] || 0) : (ventas1[p.idProducto] || 0) + (ventas2[p.idProducto] || 0)
+      if (cant > 0) productosPDF.push({ nombre: p.nombreProducto, cant, subtotal: cant * p.precio })
+    })
+    generarPDFResumen({
+      titulo: rolEsGerente ? `Cierre de caja — ${NOMBRES_CARPA[carpaGerente]}` : "Cierre de caja general",
+      fecha,
+      totalGeneral: rolEsGerente ? miTotal : totalGeneral,
+      carpas: rolEsGerente ? null : [
+        { nombre: "Carpa 1", total: total1 },
+        { nombre: "Carpa 2", total: total2 },
+      ],
+      productos: productosPDF,
+    })
+  }
+
   return (
     <div style={{ background: bgGradient, minHeight: "100vh" }}>
       {!online && (
@@ -137,6 +157,9 @@ export default function InventarioResumen() {
           </button>
           <button onClick={copiarResumen} className="rounded-lg py-3 font-bold uppercase transition-all duration-200 active:scale-95" style={{ border: "1px solid rgba(212,168,67,0.4)", color: "#d4a843", letterSpacing: "1px", fontSize: "12px" }}>
             📋 Copiar resumen
+          </button>
+          <button onClick={descargarPDF} className="rounded-lg py-3 font-bold uppercase transition-all duration-200 active:scale-95" style={{ border: "1px solid rgba(212,168,67,0.4)", color: "#d4a843", letterSpacing: "1px", fontSize: "12px" }}>
+            📄 Descargar PDF
           </button>
           {rol !== "resumen" && (
             <Link to="/inventario/productos" className="rounded-lg py-3 font-bold uppercase text-center transition-all duration-200 active:scale-95" style={{ border: "1px solid rgba(212,168,67,0.4)", color: "#d4a843", letterSpacing: "1px", fontSize: "12px" }}>

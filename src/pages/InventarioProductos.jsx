@@ -34,6 +34,7 @@ export default function InventarioProductos() {
   const [editandoCategoriaId, setEditandoCategoriaId] = useState(null)
 
   const rolEsGerente = rol?.startsWith("gerente_")
+  const miCarpaId = rolEsGerente ? rol.replace("gerente_", "") : null
   const puedeEntrar = rol === "admin" || rolEsGerente
 
   useEffect(() => {
@@ -91,7 +92,8 @@ export default function InventarioProductos() {
         toast.success("Producto actualizado")
       } else {
         const idProducto = Math.max(0, ...productos.map((p) => p.idProducto || 0)) + 1
-        await crearProducto({ ...data, idProducto })
+        const datosNuevoProducto = rolEsGerente ? { ...data, carpaId: miCarpaId } : data
+        await crearProducto({ ...datosNuevoProducto, idProducto })
         toast.success("Producto creado")
       }
       limpiarForm()
@@ -125,13 +127,21 @@ export default function InventarioProductos() {
     }
   }
 
+  const puedeTocar = (p) => rol === "admin" || (rolEsGerente && p.carpaId === miCarpaId)
+
   const limpiarFormCategoria = () => {
     setNuevaCategoria(categoriaNuevaVacia)
     setCrearComoSeccion(false)
     setEditandoCategoriaId(null)
   }
 
+  const puedeEditarCategoria = (cat) => rol === "admin" || (rolEsGerente && cat.creadaPor === miCarpaId)
+
   const handleEditarCategoria = (cat) => {
+    if (!puedeEditarCategoria(cat)) {
+      toast.error("Esta categoría la creó el admin — solo él puede editarla.")
+      return
+    }
     setNuevaCategoria({
       nombre: cat.nombre || "",
       idPadre: cat.idPadre ? String(cat.idPadre) : "",
@@ -156,7 +166,10 @@ export default function InventarioProductos() {
         toast.success(crearComoSeccion ? "Sección actualizada" : "Categoría actualizada")
       } else {
         const idCategoria = Math.max(0, ...categorias.map((c) => c.idCategoria || 0)) + 1
-        await crearCategoria({ nombre: nuevaCategoria.nombre, idPadre, idCategoria, icono: nuevaCategoria.icono || null })
+        const datosNuevaCategoria = rolEsGerente
+          ? { nombre: nuevaCategoria.nombre, idPadre, idCategoria, icono: nuevaCategoria.icono || null, creadaPor: miCarpaId }
+          : { nombre: nuevaCategoria.nombre, idPadre, idCategoria, icono: nuevaCategoria.icono || null }
+        await crearCategoria(datosNuevaCategoria)
         toast.success(crearComoSeccion ? "Sección creada" : "Categoría creada")
         if (!crearComoSeccion) setForm((f) => ({ ...f, idCategoria: String(idCategoria) }))
       }
@@ -168,8 +181,8 @@ export default function InventarioProductos() {
   }
 
   const handleEliminarCategoria = async (cat) => {
-    if (rolEsGerente) {
-      toast.error("Solo el administrador puede eliminar categorías o secciones.")
+    if (!puedeEditarCategoria(cat)) {
+      toast.error("Esta categoría la creó el admin — solo él puede eliminarla.")
       return
     }
     const esSeccion = !cat.idPadre
@@ -264,14 +277,12 @@ export default function InventarioProductos() {
                         {sec.icono ? `${sec.icono} ` : ""}{sec.nombre}
                       </span>
                       <div className="flex gap-2 flex-shrink-0">
-                        <button type="button" onClick={() => handleEditarCategoria(sec)} className="text-xs font-bold px-2 py-1 rounded-lg" style={{ border: "1px solid rgba(212,168,67,0.4)", color: "#d4a843" }}>
+                        <button type="button" onClick={() => handleEditarCategoria(sec)} disabled={!puedeEditarCategoria(sec)} title={puedeEditarCategoria(sec) ? "" : "Creada por el admin"} className="text-xs font-bold px-2 py-1 rounded-lg disabled:opacity-30" style={{ border: "1px solid rgba(212,168,67,0.4)", color: "#d4a843" }}>
                           Editar
                         </button>
-                        {!rolEsGerente && (
-                          <button type="button" onClick={() => handleEliminarCategoria(sec)} className="text-xs font-bold px-2 py-1 rounded-lg" style={{ border: "1px solid rgba(255,100,100,0.4)", color: "#ff8080" }}>
-                            Eliminar
-                          </button>
-                        )}
+                        <button type="button" onClick={() => handleEliminarCategoria(sec)} disabled={!puedeEditarCategoria(sec)} title={puedeEditarCategoria(sec) ? "" : "Creada por el admin"} className="text-xs font-bold px-2 py-1 rounded-lg disabled:opacity-30" style={{ border: "1px solid rgba(255,100,100,0.4)", color: "#ff8080" }}>
+                          Eliminar
+                        </button>
                       </div>
                     </div>
                     {getSubcategorias(categorias, sec.idCategoria).map((cat) => (
@@ -280,14 +291,12 @@ export default function InventarioProductos() {
                           {cat.icono ? `${cat.icono} ` : ""}{cat.nombre}
                         </span>
                         <div className="flex gap-2 flex-shrink-0">
-                        <button type="button" onClick={() => handleEditarCategoria(cat)} className="text-xs font-bold px-2 py-1 rounded-lg" style={{ border: "1px solid rgba(212,168,67,0.4)", color: "#d4a843" }}>
+                        <button type="button" onClick={() => handleEditarCategoria(cat)} disabled={!puedeEditarCategoria(cat)} title={puedeEditarCategoria(cat) ? "" : "Creada por el admin"} className="text-xs font-bold px-2 py-1 rounded-lg disabled:opacity-30" style={{ border: "1px solid rgba(212,168,67,0.4)", color: "#d4a843" }}>
                           Editar
                         </button>
-                        {!rolEsGerente && (
-                          <button type="button" onClick={() => handleEliminarCategoria(cat)} className="text-xs font-bold px-2 py-1 rounded-lg" style={{ border: "1px solid rgba(255,100,100,0.4)", color: "#ff8080" }}>
+                        <button type="button" onClick={() => handleEliminarCategoria(cat)} disabled={!puedeEditarCategoria(cat)} title={puedeEditarCategoria(cat) ? "" : "Creada por el admin"} className="text-xs font-bold px-2 py-1 rounded-lg disabled:opacity-30" style={{ border: "1px solid rgba(255,100,100,0.4)", color: "#ff8080" }}>
                             Eliminar
                           </button>
-                        )}
                         </div>
                       </div>
                     ))}
@@ -358,10 +367,14 @@ export default function InventarioProductos() {
                   <p className="font-bold truncate" style={{ color: "white", fontSize: "13px" }}>{p.nombreProducto}</p>
                   <p style={{ color: "rgba(212,168,67,0.5)", fontSize: "11px" }}>
                     {p.categoriaNombre} · ${Number(p.precio).toLocaleString("es-CO")}
+                    {" · "}
+                    <span style={{ color: p.carpaId ? "#d4a843" : "rgba(212,168,67,0.35)" }}>
+                      {p.carpaId ? (p.carpaId === "carpa1" ? "Carpa 1" : "Carpa 2") : "Admin"}
+                    </span>
                   </p>
                 </div>
-                <button onClick={() => handleEditar(p)} className="text-xs font-bold px-3 py-2 rounded-lg" style={{ border: "1px solid rgba(212,168,67,0.4)", color: "#d4a843" }}>Editar</button>
-                <button onClick={() => handleEliminar(p._docId, p.nombreProducto)} className="text-xs font-bold px-3 py-2 rounded-lg" style={{ border: "1px solid rgba(255,100,100,0.4)", color: "#ff8080" }}>Eliminar</button>
+                <button onClick={() => handleEditar(p)} disabled={!puedeTocar(p)} title={puedeTocar(p) ? "" : "No es tuyo"} className="text-xs font-bold px-3 py-2 rounded-lg disabled:opacity-30" style={{ border: "1px solid rgba(212,168,67,0.4)", color: "#d4a843" }}>Editar</button>
+                <button onClick={() => handleEliminar(p._docId, p.nombreProducto)} disabled={!puedeTocar(p)} title={puedeTocar(p) ? "" : "No es tuyo"} className="text-xs font-bold px-3 py-2 rounded-lg disabled:opacity-30" style={{ border: "1px solid rgba(255,100,100,0.4)", color: "#ff8080" }}>Eliminar</button>
               </div>
             ))}
             </div>

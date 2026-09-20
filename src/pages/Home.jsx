@@ -16,8 +16,8 @@ export default function Home() {
         <img
           src={logoFeria}
           alt="Corazones Fuertes"
-          className="flex-shrink-0"
-          style={{ height: "min(80%, 60vh)", maxWidth: "45%", objectFit: "contain", filter: "drop-shadow(0 0 40px rgba(212,168,67,0.4))" }}
+          className="flex-shrink-0 w-full md:w-auto"
+          style={{ maxHeight: "min(40vh, 320px)", maxWidth: "min(90%, 480px)", objectFit: "contain", filter: "drop-shadow(0 0 40px rgba(212,168,67,0.4))" }}
         />
 
         <div className="flex flex-col items-center md:items-start text-center md:text-left">
